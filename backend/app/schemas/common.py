@@ -5,10 +5,10 @@ from pydantic import BaseModel, Field
 
 class MessageResponse(BaseModel):
     """Standard greeting message response."""
-    message: str = Field(..., example="hello there")
+    message: str = Field(..., examples=["hello there"])
 
 
 class HealthResponse(BaseModel):
     """Health check status response."""
-    status: str = Field(..., example="healthy")
-    environment: str = Field(..., example="production")
+    status: str = Field(..., examples=["healthy"])
+    environment: str = Field(..., examples=["production"])

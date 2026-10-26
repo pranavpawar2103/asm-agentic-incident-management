@@ -1,8 +1,12 @@
 """Application core configuration."""
 
+from pathlib import Path
 from typing import List, Union
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+API_DIR = Path(__file__).resolve().parents[2]
+REPO_DIR = API_DIR.parent
 
 
 class Settings(BaseSettings):
@@ -13,7 +17,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    PROJECT_NAME: str = "FastAPI Production Service"
+    PROJECT_NAME: str = "AMS Agentic Incident Management"
     ENVIRONMENT: str = "production"
     DEBUG: bool = False
     API_V1_STR: str = "/api/v1"
@@ -29,6 +33,10 @@ class Settings(BaseSettings):
         return v
 
     LOG_LEVEL: str = "INFO"
+
+    # Storage
+    DATABASE_URL: str = f"sqlite:///{(API_DIR / 'ams.db').as_posix()}"
+    TICKETS_FILE: Path = REPO_DIR / "data" / "tickets" / "ams_tickets.xlsx"
 
 
 settings = Settings()

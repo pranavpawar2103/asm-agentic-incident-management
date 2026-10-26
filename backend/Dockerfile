@@ -1,5 +1,5 @@
 # Multi-stage production Dockerfile
-FROM python:3.12-slim as builder
+FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
@@ -19,7 +19,12 @@ WORKDIR /app
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
 COPY --from=builder /install /usr/local
-COPY . /app
+COPY app /app/app
+
+# SQLite lives on a writable volume; source data (tickets, KB) is mounted read-only at /data
+RUN mkdir -p /app/var && chown appuser:appuser /app/var
+ENV DATABASE_URL=sqlite:////app/var/ams.db \
+    TICKETS_FILE=/data/tickets/ams_tickets.xlsx
 
 USER appuser
 

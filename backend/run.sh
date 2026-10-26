@@ -19,9 +19,9 @@ echo "🔌 Activating virtual environment..."
 source "$VENV_DIR/bin/activate"
 
 # 3. Ensure pip is updated and install dependencies
-echo "📦 Installing / verifying dependencies from requirements.txt..."
+echo "📦 Installing / verifying dependencies from requirements-dev.txt..."
 pip install --upgrade pip --quiet
-pip install -r requirements.txt --quiet
+pip install -r requirements-dev.txt --quiet
 echo "✅ Dependencies are up to date."
 
 # 4. Copy .env.example to .env if .env doesn't exist
@@ -33,8 +33,9 @@ fi
 # 5. Start the FastAPI server
 echo "🚀 Starting FastAPI server on http://localhost:8000..."
 echo "👉 Endpoints available:"
-echo "   - Greeting: http://localhost:8000/api/v1/hello"
 echo "   - Health:   http://localhost:8000/api/v1/health"
+echo "   - Ingest:   POST http://localhost:8000/api/v1/ingest"
+echo "   - Tickets:  http://localhost:8000/api/v1/tickets"
 echo "   - Docs:     http://localhost:8000/api/v1/docs"
 echo ""
 

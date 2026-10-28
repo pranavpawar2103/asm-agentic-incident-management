@@ -11,13 +11,15 @@ backend/
 │   │   ├── endpoints/
 │   │   │   ├── health.py      # GET  /api/v1/health
 │   │   │   ├── hello.py       # GET  /api/v1/hello (template smoke test)
-│   │   │   └── tickets.py     # POST /api/v1/ingest, GET /api/v1/tickets, GET /api/v1/tickets/{id}
+│   │   │   ├── data_quality.py # POST /api/v1/data-quality/run
+│   │   │   └── tickets.py     # ingest, list, detail, POST /api/v1/tickets/{id}/comments
 │   │   └── router.py          # Versioned route aggregator
 │   ├── core/                  # Settings, logging, middleware, exception handlers
 │   ├── db/session.py          # Engine, session factory, get_db dependency
-│   ├── models/ticket.py       # Ticket (common format) and AgentRun (audit trail)
+│   ├── agents/data_quality/   # Rules stage: signals, rules, config from data/registry
+│   ├── models/ticket.py       # Ticket, AgentRun (audit trail), Comment (replies), PipelineStatus
 │   ├── schemas/               # Pydantic request/response models
-│   ├── services/ingestion.py  # ServiceNow / JIRA / Mailbox -> common Ticket format
+│   ├── services/              # ingestion, data_quality (runs the agent), comments
 │   └── main.py                # App factory and lifespan
 ├── tests/                     # pytest; conftest.py gives each test an in-memory database
 ├── Dockerfile
@@ -26,7 +28,7 @@ backend/
 └── requirements-dev.txt       # + test and lint tools
 ```
 
-Agents will live in `app/agents/` and read and write tickets through `app/services/`.
+Agents in `app/agents/` are pure logic; `app/services/` loads tickets, runs them and records the results.
 
 ## Run locally
 

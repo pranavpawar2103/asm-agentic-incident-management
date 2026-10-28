@@ -1,0 +1,9 @@
+# Application registry. Terms identify an application in free text (case-insensitive, whole words, optional plural).
+# Derived from data/knowledge_base; the support lead owns additions.
+PayrollPro:       [payrollpro, payroll pro, payroll, payslip, salary, overtime]
+OrderHub:         [orderhub, order hub, order, checkout, promo code]
+SalesConnect CRM: [salesconnect, sales connect, crm, lead, opportunity]
+EmployeePortal:   [employeeportal, employee portal, portal, sso, mfa, leave request]
+StockSense:       [stocksense, stock sense, scanner, label printer, label, goods receipt, goods, stock]
+BillingEngine:    [billingengine, billing engine, billing, invoice, credit note, gst]
+InsightBI:        [insightbi, insight bi, dashboard, report]

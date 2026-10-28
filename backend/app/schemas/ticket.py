@@ -23,6 +23,23 @@ class AgentRunOut(BaseModel):
     created_at: datetime
 
 
+class CommentCreate(BaseModel):
+    """A reply on a ticket."""
+    author_email: str = Field(..., min_length=3, examples=["priya.raman@contoso.com"])
+    body: str = Field(..., min_length=1, examples=["It is PayrollPro, the payslip PDF fails with PDF-GEN-500 since Monday."])
+
+
+class CommentOut(BaseModel):
+    """A stored reply."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    author_email: str
+    from_reporter: bool
+    body: str
+    created_at: datetime
+
+
 class TicketSummary(BaseModel):
     """Ticket fields shown in lists."""
     model_config = ConfigDict(from_attributes=True)
@@ -57,6 +74,7 @@ class TicketDetail(TicketSummary):
     closed_at: Optional[datetime]
     raw: dict[str, Any]
     agent_runs: list[AgentRunOut]
+    comments: list[CommentOut]
 
 
 class TicketList(BaseModel):

@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.ticket import Ticket
-from app.schemas.ticket import IngestResponse, TicketDetail, TicketList
+from app.schemas.ticket import CommentCreate, CommentOut, IngestResponse, TicketDetail, TicketList
+from app.services.comments import add_comment
 from app.services.ingestion import ingest_workbook
 
 router = APIRouter(tags=["tickets"])
@@ -29,7 +30,7 @@ def list_tickets(
     source: Optional[str] = Query(None, description="ServiceNow, JIRA or Mailbox"),
     status: Optional[str] = Query(None, description="new, in_progress, on_hold, resolved, closed"),
     application: Optional[str] = None,
-    pipeline_status: Optional[str] = Query(None, description="pending, historical, ..."),
+    pipeline_status: Optional[str] = Query(None, description="historical, pending, awaiting_info, dq_passed, rejected, error"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -50,10 +51,20 @@ def list_tickets(
     return TicketList(total=total, items=items)
 
 
-@router.get("/tickets/{ticket_id}", response_model=TicketDetail, summary="Get one ticket")
-def get_ticket(ticket_id: str, db: Session = Depends(get_db)) -> Ticket:
-    """Full ticket with its original source row and agent audit trail."""
+def _get_or_404(db: Session, ticket_id: str) -> Ticket:
     ticket = db.get(Ticket, ticket_id)
     if ticket is None:
         raise HTTPException(status_code=404, detail=f"Ticket {ticket_id} not found")
     return ticket
+
+
+@router.get("/tickets/{ticket_id}", response_model=TicketDetail, summary="Get one ticket")
+def get_ticket(ticket_id: str, db: Session = Depends(get_db)) -> Ticket:
+    """Full ticket with its original source row, replies and agent audit trail."""
+    return _get_or_404(db, ticket_id)
+
+
+@router.post("/tickets/{ticket_id}/comments", response_model=CommentOut, status_code=201, summary="Add a reply")
+def create_comment(ticket_id: str, payload: CommentCreate, db: Session = Depends(get_db)):
+    """Add a reply. A reply from the reporter on a ticket awaiting information sends it back to pending."""
+    return add_comment(db, _get_or_404(db, ticket_id), payload.author_email, payload.body)

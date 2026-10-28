@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     # Storage
     DATABASE_URL: str = f"sqlite:///{(API_DIR / 'ams.db').as_posix()}"
     TICKETS_FILE: Path = REPO_DIR / "data" / "tickets" / "ams_tickets.xlsx"
+    REGISTRY_DIR: Path = REPO_DIR / "data" / "registry"  # editable rules and application terms
 
 
 settings = Settings()

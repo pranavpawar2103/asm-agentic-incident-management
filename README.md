@@ -38,7 +38,8 @@ flowchart LR
 ├── backend/               # FastAPI service: ingestion, database, agents (see backend/README.md)
 ├── data/                  # Stand-ins for external systems, mounted read-only into the backend
 │   ├── tickets/           #   ServiceNow, JIRA and Mailbox export
-│   └── knowledge_base/    #   One Confluence-style page per application
+│   ├── knowledge_base/    #   One Confluence-style page per application
+│   └── registry/          #   Editable rules and application terms used by the agents
 ├── evaluation/            # Ground truth for scoring the agents; never read by the pipeline
 ├── docker-compose.yml
 └── README.md
@@ -93,10 +94,23 @@ The expected outcome for every ticket: whether it should pass Data Quality, what
 |---|---|
 | `POST /api/v1/ingest` | Load all three sources into the database. Safe to re-run: upserts and keeps agent results |
 | `GET /api/v1/tickets` | List tickets, newest first. Filters: `source`, `status`, `application`, `pipeline_status`; paging with `limit` / `offset` |
-| `GET /api/v1/tickets/{id}` | Full ticket with its original source row and agent audit trail |
+| `GET /api/v1/tickets/{id}` | Full ticket with its original source row, replies and agent audit trail |
+| `POST /api/v1/tickets/{id}/comments` | Add a reply. A reply from the reporter sends an `awaiting_info` ticket back to `pending` |
+| `POST /api/v1/data-quality/run` | Check every pending ticket. Safe to re-run: unchanged tickets are skipped |
 | `GET /api/v1/health` | Liveness check |
 
 During ingestion every source is mapped to one common ticket format. For example, ServiceNow `2 - High` and JIRA `High` both become `reported_priority = 2`. Open tickets get `pipeline_status = pending` and closed ones `historical`.
+
+| Pipeline status | Meaning |
+|---|---|
+| `historical` | Closed reference ticket, never processed |
+| `pending` | Waiting for the Data Quality check |
+| `awaiting_info` | Information missing; chase email drafted |
+| `dq_passed` | Good enough, ready for Triage |
+| `rejected` | Not a real ticket, e.g. a test |
+| `error` | Failed in a way that needs a person to look |
+
+The Data Quality rules stage (no model) stops only tickets it is certain about: test tickets become `rejected`, near-empty ones `awaiting_info`. Everything else stays `pending` for the model step. Thresholds and terms live in `data/registry/` and are scored with `python evaluation/dq_rules_report.py`.
 
 ## Quick start
 
@@ -128,7 +142,8 @@ Tests: `cd backend && pytest`
 |---|---|
 | Dummy data: tickets, knowledge base, ground truth | Done |
 | Ingestion, common ticket model, SQLite, ticket API | Done |
-| Data Quality agent (LangGraph) + "missing information" email draft | Next |
+| Data Quality: rules stage, statuses, replies | Done |
+| Data Quality: PII masking, model check, "missing information" email draft | Next |
 | Priority rulebook + Triage agent | Planned |
 | Resolution agent over the knowledge base | Planned |
 | Chat UI (`frontend/`) | Planned |

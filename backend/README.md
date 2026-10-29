@@ -28,6 +28,10 @@ backend/
 
 Agents will live in `app/agents/` and read and write tickets through `app/services/`.
 
+## Documentation
+
+For architectural patterns, database standards (Supabase/PostgreSQL async conventions), and guidelines for building agent workflows, refer to [DEVELOPMENT.md](DEVELOPMENT.md).
+
 ## Run locally
 
 ```bash

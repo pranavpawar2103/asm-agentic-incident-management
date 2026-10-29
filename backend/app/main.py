@@ -10,7 +10,7 @@ from app.core.config import settings
 from app.core.exceptions import global_exception_handler
 from app.core.logging import setup_logging
 from app.core.middleware import RequestLoggingMiddleware
-from app.db.session import init_db
+from app.db.session import close_db
 
 logger = logging.getLogger("app.main")
 
@@ -20,9 +20,11 @@ async def lifespan(app: FastAPI):
     """Lifecycle startup and shutdown events."""
     setup_logging()
     logger.info(f"Starting {settings.PROJECT_NAME} [{settings.ENVIRONMENT}]")
-    init_db()
-    yield
-    logger.info(f"Shutting down {settings.PROJECT_NAME}")
+    try:
+        yield
+    finally:
+        logger.info(f"Shutting down {settings.PROJECT_NAME}")
+        await close_db()
 
 
 def create_application() -> FastAPI:

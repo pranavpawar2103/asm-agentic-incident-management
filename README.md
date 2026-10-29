@@ -36,6 +36,7 @@ flowchart LR
 ```text
 .
 ├── backend/               # FastAPI service: ingestion, database, agents (see backend/README.md)
+├── frontend/              # Next.js 16 (App Router) + shadcn/ui dashboard (see frontend/DEVELOPMENT.md)
 ├── data/                  # Stand-ins for external systems, mounted read-only into the backend
 │   ├── tickets/           #   ServiceNow, JIRA and Mailbox export
 │   └── knowledge_base/    #   One Confluence-style page per application

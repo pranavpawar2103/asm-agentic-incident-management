@@ -1,0 +1,34 @@
+# PII masking applied to everything sent to a model. Each finding becomes a numbered placeholder, e.g. <PERSON_1>.
+# Application names come from apps.yaml. Dates and times are never masked: the agents need them.
+
+spacy_model: en_core_web_sm
+score_threshold: 0.35          # Presidio scores phone numbers around 0.4
+
+# Presidio built-in entities -> placeholder label
+entities:
+  PERSON: PERSON
+  EMAIL_ADDRESS: EMAIL
+  PHONE_NUMBER: PHONE
+  LOCATION: LOCATION
+  IP_ADDRESS: IP               # URL is left out: it reads file names like error.png as web addresses; HOST covers ours
+  CREDIT_CARD: CARD
+  IBAN_CODE: IBAN
+
+# Custom patterns: placeholder label -> regular expressions (case-sensitive)
+patterns:
+  EMPLOYEE_ID: ['\bE\d{5}\b', '\bEMP[\s-]?\d{4,6}\b']
+  PAN: ['\b[A-Z]{5}\d{4}[A-Z]\b']
+  AADHAAR: ['\b\d{4}\s\d{4}\s\d{4}\b']
+  BANK_ACCOUNT: ['\b(?:a/c|account)(?: no\.?| number)?\s*:?\s*\d{9,18}\b']
+  HOST: ['\b(?:[\w-]+\.)*contoso\.(?:com|local)\b']   # internal hosts and domain
+  CODE: ['\b[A-Z]{2,}[A-Z0-9]*(-[A-Z0-9]+)*-\d+[A-Z0-9]*\b', '\b[A-Z][A-Z0-9]*(_[A-Z0-9]+)+\b']   # error codes, record IDs, job names
+
+# Exact terms to mask (case-insensitive): placeholder label -> terms
+terms:
+  APP: [TimeTrack]               # internal systems that are not in apps.yaml
+  LOCATION: [Pune, Chennai, Nagpur]  # company sites
+
+# Words spaCy mistakes for people or places in tickets; never masked when found by NER alone.
+# The keywords in apps.yaml are kept too.
+keep: [kb, po, ui, admin ui, email, request, workflow, remittance, pending, chrome, bin, max,
+       north, south, east, west, sales]

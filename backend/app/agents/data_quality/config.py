@@ -3,11 +3,8 @@
 import re
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any
 
-import yaml
-
-from app.core.config import settings
+from app.core.registry import load_registry
 
 
 @dataclass(frozen=True)
@@ -27,10 +24,6 @@ def normalise(text: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9 ]", "", text.casefold()).split())
 
 
-def _load(filename: str) -> Any:
-    return yaml.safe_load((settings.REGISTRY_DIR / filename).read_text(encoding="utf-8"))
-
-
 def _any_term(terms: list[str]) -> re.Pattern:
     alternatives = "|".join(re.escape(t) for t in sorted(terms, key=len, reverse=True))
     return re.compile(rf"\b(?:{alternatives})s?\b", re.I)
@@ -38,7 +31,7 @@ def _any_term(terms: list[str]) -> re.Pattern:
 
 @lru_cache
 def get_config() -> DQConfig:
-    rules = _load("dq_rules.yaml")
+    rules = load_registry("dq_rules.yaml")
     return DQConfig(
         min_body_length=rules["min_body_length"],
         placeholder=frozenset(normalise(p) for p in rules["placeholder"]) - {""},
@@ -47,5 +40,5 @@ def get_config() -> DQConfig:
         ticket_reference=re.compile(rules["ticket_reference"]),
         previous_ticket=tuple(re.compile(p, re.I) for p in rules["previous_ticket"]),
         identifier=tuple(re.compile(p) for p in rules["identifier"]),
-        apps={name: _any_term(terms) for name, terms in _load("apps.yaml").items()},
+        apps={name: _any_term(app["names"] + app["keywords"]) for name, app in load_registry("apps.yaml").items()},
     )

@@ -15,17 +15,22 @@ flowchart LR
     subgraph data["data/ (stand-ins for external systems)"]
         tickets["tickets/ams_tickets.xlsx<br/>ServiceNow 50, JIRA 30, Mailbox 20"]
         kb["knowledge_base/*.md<br/>7 apps, 35 KB articles"]
+        registry["registry/*.yaml<br/>rules, app terms, PII settings"]
     end
 
     subgraph backend["backend/ (FastAPI service)"]
-        db[("SQLite<br/>tickets: one common format<br/>agent_runs: every agent's verdict")]
+        db[("SQLite<br/>tickets: one common format<br/>ticket_comments: replies<br/>agent_runs: every agent's verdict")]
         dq["Data Quality agent"] --> triage["Triage agent"] --> res["Resolution agent"]
+        mask["PII masking<br/>(Presidio)"]
     end
 
-    eval["evaluation/ground_truth.xlsx<br/>answer key, used only for scoring"]
+    llm["LLM"]
+    eval["evaluation/<br/>answer key + scoring reports"]
 
     tickets -- ingest --> db
     db --> dq
+    registry -. configures .-> dq & mask
+    dq & triage & res -- every model call --> mask -- placeholders only --> llm
     res -- search --> kb
     dq & triage & res -- save verdict --> db
     eval -. compare results .-> db
@@ -39,8 +44,8 @@ flowchart LR
 ├── data/                  # Stand-ins for external systems, mounted read-only into the backend
 │   ├── tickets/           #   ServiceNow, JIRA and Mailbox export
 │   ├── knowledge_base/    #   One Confluence-style page per application
-│   └── registry/          #   Editable rules and application terms used by the agents
-├── evaluation/            # Ground truth for scoring the agents; never read by the pipeline
+│   └── registry/          #   Editable rules, application terms and PII settings used by the agents
+├── evaluation/            # Answer key and scoring reports; never read by the pipeline
 ├── docker-compose.yml
 └── README.md
 ```
@@ -55,7 +60,7 @@ flowchart LR
 |---|---|---|
 | ServiceNow | 50 | INC numbers, caller, impact / urgency / priority, state, close notes |
 | JIRA | 30 | AMS-xxxx keys, Highest..Lowest priority, application as *component* |
-| Mailbox | 20 | Raw emails (subject + body only); application must be inferred |
+| Mailbox | 20 | Raw emails: sender, subject, body, attachments; no priority or application field |
 | Data_Dictionary | — | Field meanings |
 
 Tickets from August to mid-October 2026 are closed and include resolution notes (reference history). Tickets from 19–26 October 2026 are open and untriaged; these are what the pipeline processes.
@@ -110,7 +115,9 @@ During ingestion every source is mapped to one common ticket format. For example
 | `rejected` | Not a real ticket, e.g. a test |
 | `error` | Failed in a way that needs a person to look |
 
-The Data Quality rules stage (no model) stops only tickets it is certain about: test tickets become `rejected`, near-empty ones `awaiting_info`. Everything else stays `pending` for the model step. Thresholds and terms live in `data/registry/` and are scored with `python evaluation/dq_rules_report.py`.
+The Data Quality rules stage (no model) stops only tickets it is certain about: test tickets become `rejected`; placeholder descriptions ("n/a", "tbd") and near-empty ones become `awaiting_info`. Everything else stays `pending` for the model step. Thresholds and terms live in `data/registry/` and are scored with `python evaluation/dq_rules_report.py`.
+
+Before any text reaches a model it is masked with Microsoft Presidio: names, emails, phones, employee IDs, sites, application names, error codes and internal hosts become numbered placeholders such as `<PERSON_1>` or `<APP_1>`, and the real values are put back into the model's answer locally. The database keeps the original data. `python evaluation/pii_leak_report.py` checks that no known name, email or application survives on any ticket.
 
 ## Quick start
 
@@ -136,6 +143,8 @@ Then open the API docs at http://localhost:8000/api/v1/docs, run `POST /ingest`,
 
 Tests: `cd backend && pytest`
 
+There are no database migrations yet. After a model change, delete `backend/ams.db` (Docker: `docker compose down -v`) and run `POST /ingest` again.
+
 ## Status
 
 | Step | State |
@@ -143,8 +152,10 @@ Tests: `cd backend && pytest`
 | Dummy data: tickets, knowledge base, ground truth | Done |
 | Ingestion, common ticket model, SQLite, ticket API | Done |
 | Data Quality: rules stage, statuses, replies | Done |
-| Data Quality: PII masking, model check, "missing information" email draft | Next |
+| PII masking (Presidio): people, contacts, IDs, sites, app names, codes, hosts | Done |
+| Data Quality: model check, "missing information" email draft | Next |
 | Priority rulebook + Triage agent | Planned |
 | Resolution agent over the knowledge base | Planned |
 | Chat UI (`frontend/`) | Planned |
-| Evaluation script scoring agents against ground truth | Planned |
+| Scoring reports: Data Quality rules, PII leaks | Done |
+| Scoring for the model step, Triage and Resolution | Planned |

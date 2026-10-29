@@ -17,6 +17,7 @@ backend/
 │   ├── core/                  # Settings, logging, middleware, exception handlers
 │   ├── db/session.py          # Engine, session factory, get_db dependency
 │   ├── agents/data_quality/   # Rules stage: signals, rules, config from data/registry
+│   ├── privacy/masking.py     # Presidio PII masking before any model call, and unmasking after
 │   ├── models/ticket.py       # Ticket, AgentRun (audit trail), Comment (replies), PipelineStatus
 │   ├── schemas/               # Pydantic request/response models
 │   ├── services/              # ingestion, data_quality (runs the agent), comments

@@ -69,6 +69,19 @@ This document provides architecture conventions, standards, and guidelines for d
              await close_db()
      ```
 
+### Database Scripts (`db/scripts/`)
+
+Schema is managed by plain SQL scripts that run from a workbench (Supabase SQL Editor, pgAdmin, DBeaver). See [`db/scripts/README.md`](db/scripts/README.md).
+
+- Run in numeric order: `01_create_servicenow_tickets.sql`, then `02_create_dq_rules.sql`. Scripts are idempotent (`IF NOT EXISTS`). `99_drop_tables.sql` is destructive, dev only.
+- Add each schema change as the next numbered script (e.g. `03_add_<change>.sql`). Do not edit applied scripts.
+- Tables:
+  - `servicenow_tickets`: tickets in the AMS team's schema, plus `dq_flag` / `dq_reason`. Tickets are always stored; the flag marks them as filtered out by data quality rules.
+  - `dq_rules`: user-managed rules (`field`, `operator`, `value`, optional `source` / `service`, `apply_to` = existing/new/both, `is_enabled` toggle, soft delete via `deleted_at`).
+  - `dq_runs`, `dq_run_tickets`, `dq_rule_matches`: history of rule applies, per-ticket before/after flags (used to revert a run), and which rule matched which ticket.
+- Design notes, assumptions and open questions: [`db/scripts/DQ_RULES_FEATURE.md`](db/scripts/DQ_RULES_FEATURE.md).
+- Known gap: `app/models/ticket.py` still defines the older `tickets` / `agent_runs` tables and does not match these scripts yet. Update the models and services before using the new tables from code.
+
 ---
 
 ## 3. Developing Agents & Services

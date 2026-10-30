@@ -167,6 +167,8 @@ def ingest_workbook(db: Session, path: Path) -> IngestResult:
     result = IngestResult()
     try:
         for sheet, mapper in SOURCES.items():
+            if sheet not in workbook.sheetnames:  # ServiceNow now has its own file and table
+                continue
             for row in _rows(workbook, sheet):
                 fields = mapper(row)
                 fields["raw"] = _raw(row)

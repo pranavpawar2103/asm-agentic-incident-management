@@ -56,9 +56,8 @@ async def _status(client, ticket_id):
 async def test_run_sets_statuses_and_is_idempotent(client):
     await client.post("/api/v1/ingest")
     first = (await client.post("/api/v1/data-quality/run")).json()
-    assert first["evaluated"] == 67 and first["skipped"] == 0
+    assert first["evaluated"] == 35 and first["skipped"] == 0
 
-    assert await _status(client, "INC0010274") == "rejected"
     assert await _status(client, "MBX-00012") == "awaiting_info"
     assert await _status(client, "MBX-00006") == "pending"  # uncertain: left for the model
 

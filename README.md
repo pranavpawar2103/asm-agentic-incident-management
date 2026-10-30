@@ -19,7 +19,7 @@ flowchart LR
     end
 
     subgraph backend["backend/ (FastAPI service)"]
-        db[("SQLite<br/>tickets: one common format<br/>ticket_comments: replies<br/>agent_runs: every agent's verdict")]
+        db[("PostgreSQL (Supabase)<br/>tickets: one common format<br/>ticket_comments: replies<br/>agent_runs: every agent's verdict")]
         dq["Data Quality agent"] --> triage["Triage agent"] --> res["Resolution agent"]
         mask["PII masking<br/>(Presidio)"]
     end
@@ -41,8 +41,10 @@ flowchart LR
 ```text
 .
 ├── backend/               # FastAPI service: ingestion, database, agents (see backend/README.md)
+├── frontend/              # Next.js 16 (App Router) + shadcn/ui dashboard (see frontend/DEVELOPMENT.md)
 ├── data/                  # Stand-ins for external systems, mounted read-only into the backend
-│   ├── tickets/           #   ServiceNow, JIRA and Mailbox export
+│   ├── tickets/           #   servicenow_tickets.xlsx (DB schema) and ams_tickets.xlsx (JIRA, Mailbox)
+│   ├── rules/             #   dq_rules.xlsx: sample Data Quality rules (dq_rules table schema)
 │   ├── knowledge_base/    #   One Confluence-style page per application
 │   └── registry/          #   Editable rules, application terms and PII settings used by the agents
 ├── evaluation/            # Answer key and scoring reports; never read by the pipeline
@@ -52,18 +54,19 @@ flowchart LR
 
 ## Data
 
-### Tickets: `data/tickets/ams_tickets.xlsx`
+### Tickets
 
-100 tickets, one sheet per source, each in that system's native format:
-
-| Sheet | Rows | Format |
+| File / sheet | Rows | Format |
 |---|---|---|
-| ServiceNow | 50 | INC numbers, caller, impact / urgency / priority, state, close notes |
-| JIRA | 30 | AMS-xxxx keys, Highest..Lowest priority, application as *component* |
-| Mailbox | 20 | Raw emails: sender, subject, body, attachments; no priority or application field |
-| Data_Dictionary | — | Field meanings |
+| `servicenow_tickets.xlsx` | 80 | Same columns as the `servicenow_tickets` table: ticket_id, caller, short / full description, priority, assignment group, service, resolution notes, opened / closed. 50 regular tickets plus 30 edge cases ("I cant login", empty, "N/A", test, attachment only, missing caller or service, log dump, PII-rich, ...) |
+| `ams_tickets.xlsx` → JIRA | 30 | AMS-xxxx keys, Highest..Lowest priority, application as *component* |
+| `ams_tickets.xlsx` → Mailbox | 20 | Raw emails: sender, subject, body, attachments; no priority or application field |
 
 Tickets from August to mid-October 2026 are closed and include resolution notes (reference history). Tickets from 19–26 October 2026 are open and untriaged; these are what the pipeline processes.
+
+### Data Quality rules: `data/rules/dq_rules.xlsx`
+
+18 sample rules in the `dq_rules` table schema, covering all ten operators, global and source- or service-bound rules, every `apply_to` value, one disabled and one soft-deleted rule. The `Operator_Semantics` sheet defines how each operator treats case, blanks and length. `evaluation/servicenow_dq_expected.xlsx` lists, per ticket, which rules should match when applied to existing and to new tickets.
 
 ### Knowledge base: `data/knowledge_base/`
 
@@ -117,7 +120,7 @@ During ingestion every source is mapped to one common ticket format. For example
 
 The Data Quality rules stage (no model) stops only tickets it is certain about: test tickets become `rejected`; placeholder descriptions ("n/a", "tbd") and near-empty ones become `awaiting_info`. Everything else stays `pending` for the model step. Thresholds and terms live in `data/registry/` and are scored with `python evaluation/dq_rules_report.py`.
 
-Before any text reaches a model it is masked with Microsoft Presidio: names, emails, phones, employee IDs, sites, application names, error codes and internal hosts become numbered placeholders such as `<PERSON_1>` or `<APP_1>`, and the real values are put back into the model's answer locally. The database keeps the original data. `python evaluation/pii_leak_report.py` checks that no known name, email or application survives on any ticket.
+Personal information is masked with Microsoft Presidio: names, emails, phones, employee IDs, PAN, Aadhaar, bank accounts and cards become numbered placeholders such as `<PERSON_1>`. Application names, error codes, record IDs, sites and dates stay readable. `python backend/scripts/mask_servicenow_tickets.py` writes `data/tickets/servicenow_tickets_masked.xlsx`, with the same person getting the same placeholder across the file. `python evaluation/pii_leak_report.py` checks that no known name or email survives.
 
 ## Quick start
 
@@ -143,16 +146,17 @@ Then open the API docs at http://localhost:8000/api/v1/docs, run `POST /ingest`,
 
 Tests: `cd backend && pytest`
 
-There are no database migrations yet. After a model change, delete `backend/ams.db` (Docker: `docker compose down -v`) and run `POST /ingest` again.
+Set `DATABASE_URL` in `backend/.env` (Supabase, `postgresql+asyncpg://...`); never commit it. Table scripts are in `backend/db/scripts/`.
 
 ## Status
 
 | Step | State |
 |---|---|
 | Dummy data: tickets, knowledge base, ground truth | Done |
-| Ingestion, common ticket model, SQLite, ticket API | Done |
+| Ingestion, common ticket model, ticket API | Done |
+| PostgreSQL (Supabase) async connection, DB scripts, frontend template | Done |
 | Data Quality: rules stage, statuses, replies | Done |
-| PII masking (Presidio): people, contacts, IDs, sites, app names, codes, hosts | Done |
+| PII masking (Presidio): personal information only; masked ServiceNow export | Done |
 | Data Quality: model check, "missing information" email draft | Next |
 | Priority rulebook + Triage agent | Planned |
 | Resolution agent over the knowledge base | Planned |

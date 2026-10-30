@@ -34,8 +34,13 @@ class Settings(BaseSettings):
 
     LOG_LEVEL: str = "INFO"
 
-    # Storage
-    DATABASE_URL: str = f"sqlite:///{(API_DIR / 'ams.db').as_posix()}"
+    # Storage / Database (PostgreSQL / Supabase default)
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/postgres"
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 10
+    DB_POOL_PRE_PING: bool = True
+    DB_ECHO: bool = False
+
     TICKETS_FILE: Path = REPO_DIR / "data" / "tickets" / "ams_tickets.xlsx"
     REGISTRY_DIR: Path = REPO_DIR / "data" / "registry"  # editable rules and application terms
 

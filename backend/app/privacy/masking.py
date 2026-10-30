@@ -1,7 +1,7 @@
-"""Mask PII and confidential names with Microsoft Presidio before text reaches a model, and restore them after.
+"""Mask personal information with Microsoft Presidio, and restore it afterwards.
 
-Use one Masker per model call. Within it the same value always gets the same placeholder, so the model can
-still tell people apart, and unmask() puts the real values back into the model's answer.
+Only personal data is masked (names, contacts, personal IDs). Application names, error codes and record IDs stay
+readable. Within one Masker the same value always gets the same placeholder, and unmask() puts the real values back.
 """
 
 import re
@@ -16,6 +16,7 @@ from app.core.registry import load_registry
 
 PLACEHOLDER = re.compile(r"<[A-Z]+(?:_[A-Z]+)*_\d+>")
 NER = "SpacyRecognizer"
+KNOWN_PEOPLE = "known_people"
 
 
 class MaskedText(str):
@@ -23,7 +24,7 @@ class MaskedText(str):
 
 
 class PiiLeakError(RuntimeError):
-    """A known private value is still present after masking. The value itself is never included."""
+    """A known name or email is still present after masking. The value itself is never included."""
 
 
 class UnknownPlaceholderError(ValueError):
@@ -33,7 +34,7 @@ class UnknownPlaceholderError(ValueError):
 class _Engine(NamedTuple):
     analyzer: AnalyzerEngine
     labels: dict[str, str]  # Presidio entity -> placeholder label
-    app_terms: dict[str, str]  # how an app is written (casefolded) -> app name
+    protect: tuple[re.Pattern, ...]  # spans that are never masked
     keep: frozenset[str]  # ordinary words NER must not mask
 
 
@@ -45,36 +46,35 @@ def _engine() -> _Engine:
         "nlp_engine_name": "spacy",
         "models": [{"lang_code": "en", "model_name": config["spacy_model"]}],
     }).create_engine()
-    engine = AnalyzerEngine(nlp_engine=nlp, supported_languages=["en"])
-
+    analyzer = AnalyzerEngine(nlp_engine=nlp, supported_languages=["en"])
     for label, regexes in config["patterns"].items():
         patterns = [Pattern(label, rx, 0.9) for rx in regexes]
-        engine.registry.add_recognizer(PatternRecognizer(supported_entity=label, patterns=patterns, global_regex_flags=re.M))
+        analyzer.registry.add_recognizer(PatternRecognizer(supported_entity=label, patterns=patterns, global_regex_flags=re.M))
 
     apps = load_registry("apps.yaml")
-    app_terms = {name.casefold(): app for app, entry in apps.items() for name in [app, *entry["names"]]}
+    app_names = sorted({n for app, entry in apps.items() for n in [app, *entry["names"]]}, key=len, reverse=True)
+    protect = (*(re.compile(p) for p in config["protect"]), re.compile(rf"\b(?:{'|'.join(map(re.escape, app_names))})\b", re.I))
     keep = frozenset(w.casefold() for w in [*config["keep"], *(k for entry in apps.values() for k in entry["keywords"])])
-    terms = {label: list(values) for label, values in config["terms"].items()}
-    terms["APP"] = [*terms.get("APP", []), *app_terms]
-    for label, values in terms.items():
-        engine.registry.add_recognizer(PatternRecognizer(supported_entity=label, deny_list=values, name=f"{label}_terms"))
-
-    labels = {**config["entities"], **{label: label for label in [*config["patterns"], *terms]}}
-    return _Engine(engine, labels, app_terms, keep)
+    labels = {**config["entities"], **{label: label for label in config["patterns"]}}
+    return _Engine(analyzer, labels, protect, keep)
 
 
-def _trim_ner(results: list[RecognizerResult], text: str, keep: frozenset[str]) -> list[RecognizerResult]:
-    """spaCy findings: cut at a line break (a name never spans lines) and drop ordinary support words."""
-    trimmed = []
+def _filter(results: list[RecognizerResult], text: str, engine: _Engine) -> list[RecognizerResult]:
+    """Drop findings on protected spans; cut NER names at a line break and drop ordinary words NER mistook for names."""
+    protected = [m.span() for p in engine.protect for m in p.finditer(text)]
+    kept = []
     for r in results:
-        if r.recognition_metadata.get(RecognizerResult.RECOGNIZER_NAME_KEY) == NER:
+        source = r.recognition_metadata.get(RecognizerResult.RECOGNIZER_NAME_KEY)
+        if source != KNOWN_PEOPLE and any(r.start < end and start < r.end for start, end in protected):
+            continue
+        if source == NER:
             if (newline := text.find("\n", r.start, r.end)) != -1:
                 r.end = newline
             word = text[r.start:r.end].strip().casefold()
-            if not word or word in keep or word.removesuffix("s") in keep:
+            if not word or word in engine.keep or word.removesuffix("s") in engine.keep:
                 continue
-        trimmed.append(r)
-    return trimmed
+        kept.append(r)
+    return kept
 
 
 def _without_overlaps(results: list[RecognizerResult]) -> list[RecognizerResult]:
@@ -89,23 +89,20 @@ def _without_overlaps(results: list[RecognizerResult]) -> list[RecognizerResult]
 class Masker:
     def __init__(self, known_names: Iterable[Optional[str]] = (), known_emails: Iterable[Optional[str]] = ()):
         """known_names / known_emails come from the ticket's own fields and are always masked, even where NER misses them."""
-        self._names = [n.strip() for n in known_names if n and n.strip()]
-        self._name_parts = {p.casefold(): n.casefold() for n in self._names for p in n.split() if len(p) >= 3}
+        system = {a.casefold() for a in load_registry("pii.yaml")["system_accounts"]}
+        self._names = sorted({n.strip() for n in known_names if n and n.strip() and n.strip().casefold() not in system})
+        parts = Counter(p.casefold() for n in self._names for p in set(n.split()) if len(p) >= 3)
+        self._parts = sorted(parts)  # every first and last name is masked on its own too
+        # ...and linked to the full name when no other known person shares it
+        self._name_parts = {p.casefold(): n.casefold() for n in self._names for p in n.split() if parts.get(p.casefold()) == 1}
         self._emails = [e.strip() for e in known_emails if e and e.strip()]
         self._issued: dict[tuple[str, str], str] = {}  # (label, normalised value) -> placeholder
         self._values: dict[str, str] = {}  # placeholder -> original value
         self.counts: Counter = Counter()  # findings per label; safe to log
 
-    def _key(self, label: str, value: str, app_terms: dict[str, str]) -> str:
+    def _placeholder(self, label: str, value: str) -> str:
         v = " ".join(value.casefold().split())
-        if label == "PERSON":
-            return self._name_parts.get(v, v)  # "Priya" and "Priya Raman" are the same reporter
-        if label == "APP":
-            return app_terms.get(v, v).casefold()  # "Payroll Pro" and "PayrollPro" are the same app
-        return v
-
-    def _placeholder(self, label: str, value: str, app_terms: dict[str, str]) -> str:
-        key = (label, self._key(label, value, app_terms))
+        key = (label, self._name_parts.get(v, v) if label == "PERSON" else v)  # "Priya" and "Priya Raman" are one person
         if key not in self._issued:
             self._issued[key] = f"<{label}_{sum(k[0] == label for k in self._issued) + 1}>"
             self._values[self._issued[key]] = value
@@ -113,28 +110,31 @@ class Masker:
         return self._issued[key]
 
     def mask(self, text: Optional[str]) -> MaskedText:
-        if not text:
-            return MaskedText("")
+        if not text or not text.strip():
+            return MaskedText(text or "")
         engine = _engine()
-        known = [PatternRecognizer(supported_entity="PERSON", deny_list=[*self._names, *self._name_parts], name="known_people")]
+        known = [  # a lone first or last name scores below NER, so "Ravi Kumar" is not split into two known people
+            PatternRecognizer(supported_entity="PERSON", deny_list=self._names, name=KNOWN_PEOPLE),
+            PatternRecognizer(supported_entity="PERSON", deny_list=self._parts, deny_list_score=0.8, name=KNOWN_PEOPLE),
+        ] if self._names else None
         results = engine.analyzer.analyze(
             text,
             language="en",
             entities=list(engine.labels),
             score_threshold=load_registry("pii.yaml")["score_threshold"],
-            ad_hoc_recognizers=known if self._names else None,
+            ad_hoc_recognizers=known,
         )
 
         parts, cursor = [], 0
-        for r in _without_overlaps(_trim_ner(results, text, engine.keep)):
-            parts += [text[cursor:r.start], self._placeholder(engine.labels[r.entity_type], text[r.start:r.end], engine.app_terms)]
+        for r in _without_overlaps(_filter(results, text, engine)):
+            parts += [text[cursor:r.start], self._placeholder(engine.labels[r.entity_type], text[r.start:r.end])]
             cursor = r.end
         masked = "".join([*parts, text[cursor:]])
-        self._check_leaks(masked, engine.app_terms)
+        self._check_leaks(masked)
         return MaskedText(masked)
 
-    def _check_leaks(self, masked: str, app_terms: dict[str, str]) -> None:
-        for kind, values in [("name", [*self._names, *self._name_parts]), ("email", self._emails), ("application", app_terms)]:
+    def _check_leaks(self, masked: str) -> None:
+        for kind, values in [("name", [*self._names, *self._parts]), ("email", self._emails)]:
             if any(re.search(rf"(?<!\w){re.escape(v)}(?!\w)", masked, re.I) for v in values):
                 raise PiiLeakError(f"A known {kind} is still present after masking")
 

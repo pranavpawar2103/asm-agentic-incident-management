@@ -1,7 +1,7 @@
 """Data Quality agent endpoints."""
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.schemas.data_quality import DataQualityRunResponse
@@ -11,7 +11,7 @@ router = APIRouter(prefix="/data-quality", tags=["data quality"])
 
 
 @router.post("/run", response_model=DataQualityRunResponse, summary="Check pending tickets")
-def run(db: Session = Depends(get_db)) -> DataQualityRunResponse:
+async def run(db: AsyncSession = Depends(get_db)) -> DataQualityRunResponse:
     """Run the Data Quality checks on every pending ticket. Safe to re-run: unchanged tickets are skipped."""
-    result = run_data_quality(db)
+    result = await db.run_sync(run_data_quality)
     return DataQualityRunResponse(evaluated=result.evaluated, skipped=result.skipped, by_verdict=dict(result.by_verdict))

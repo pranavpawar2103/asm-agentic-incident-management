@@ -1,4 +1,4 @@
-"""Check PII masking on every ticket: no known name, email or application name may survive.
+"""Check PII masking on every ticket: no known name or email may survive.
 
 Usage, from the repo root:  python evaluation/pii_leak_report.py
 """

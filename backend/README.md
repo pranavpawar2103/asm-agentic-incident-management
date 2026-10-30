@@ -1,6 +1,6 @@
 # Backend
 
-FastAPI service that ingests tickets from all sources, stores them in SQLite and (next) runs the agent pipeline over them.
+FastAPI service that ingests tickets from all sources, stores them in PostgreSQL (Supabase) and runs the agent pipeline over them.
 
 ## Structure
 
@@ -30,6 +30,10 @@ backend/
 ```
 
 Agents in `app/agents/` are pure logic; `app/services/` loads tickets, runs them and records the results.
+
+## Documentation
+
+For architectural patterns, database standards (Supabase/PostgreSQL async conventions), and guidelines for building agent workflows, refer to [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Run locally
 

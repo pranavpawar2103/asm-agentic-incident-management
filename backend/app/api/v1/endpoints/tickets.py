@@ -3,7 +3,8 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import settings
 from app.db.session import get_db
@@ -16,24 +17,24 @@ router = APIRouter(tags=["tickets"])
 
 
 @router.post("/ingest", response_model=IngestResponse, summary="Load tickets from all sources")
-def ingest(db: Session = Depends(get_db)) -> IngestResponse:
+async def ingest(db: AsyncSession = Depends(get_db)) -> IngestResponse:
     """Read ServiceNow, JIRA and Mailbox tickets from the workbook and upsert them. Safe to re-run."""
     try:
-        result = ingest_workbook(db, settings.TICKETS_FILE)
+        result = await db.run_sync(ingest_workbook, settings.TICKETS_FILE)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return IngestResponse(created=result.created, updated=result.updated, by_source=dict(result.by_source))
 
 
 @router.get("/tickets", response_model=TicketList, summary="List tickets")
-def list_tickets(
+async def list_tickets(
     source: Optional[str] = Query(None, description="ServiceNow, JIRA or Mailbox"),
     status: Optional[str] = Query(None, description="new, in_progress, on_hold, resolved, closed"),
     application: Optional[str] = None,
     pipeline_status: Optional[str] = Query(None, description="historical, pending, awaiting_info, dq_passed, rejected, error"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> TicketList:
     """Tickets newest first, optionally filtered."""
     query = select(Ticket)
@@ -46,9 +47,9 @@ def list_tickets(
         if value is not None:
             query = query.where(column == value)
 
-    total = db.scalar(select(func.count()).select_from(query.subquery()))
-    items = db.scalars(query.order_by(Ticket.opened_at.desc()).limit(limit).offset(offset)).all()
-    return TicketList(total=total, items=items)
+    total_result = await db.scalar(select(func.count()).select_from(query.subquery()))
+    items_result = await db.scalars(query.order_by(Ticket.opened_at.desc()).limit(limit).offset(offset))
+    return TicketList(total=total_result or 0, items=items_result.all())
 
 
 def _get_or_404(db: Session, ticket_id: str) -> Ticket:
@@ -59,12 +60,15 @@ def _get_or_404(db: Session, ticket_id: str) -> Ticket:
 
 
 @router.get("/tickets/{ticket_id}", response_model=TicketDetail, summary="Get one ticket")
-def get_ticket(ticket_id: str, db: Session = Depends(get_db)) -> Ticket:
+async def get_ticket(ticket_id: str, db: AsyncSession = Depends(get_db)) -> Ticket:
     """Full ticket with its original source row, replies and agent audit trail."""
-    return _get_or_404(db, ticket_id)
+    ticket = await db.get(Ticket, ticket_id, options=[selectinload(Ticket.agent_runs), selectinload(Ticket.comments)])
+    if ticket is None:
+        raise HTTPException(status_code=404, detail=f"Ticket {ticket_id} not found")
+    return ticket
 
 
 @router.post("/tickets/{ticket_id}/comments", response_model=CommentOut, status_code=201, summary="Add a reply")
-def create_comment(ticket_id: str, payload: CommentCreate, db: Session = Depends(get_db)):
+async def create_comment(ticket_id: str, payload: CommentCreate, db: AsyncSession = Depends(get_db)):
     """Add a reply. A reply from the reporter on a ticket awaiting information sends it back to pending."""
-    return add_comment(db, _get_or_404(db, ticket_id), payload.author_email, payload.body)
+    return await db.run_sync(lambda s: add_comment(s, _get_or_404(s, ticket_id), payload.author_email, payload.body))

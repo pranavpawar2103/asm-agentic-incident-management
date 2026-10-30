@@ -1,11 +1,12 @@
 """Integration / API tests for ServiceNow tickets endpoints."""
 
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock
 import pytest
 from httpx import ASGITransport, AsyncClient
-from unittest.mock import AsyncMock, MagicMock
 
-from app.main import app
 from app.db.session import get_db
+from app.main import app
 from app.models.servicenow import ServiceNowTicket
 
 
@@ -16,7 +17,10 @@ def mock_db():
 
 @pytest.fixture
 async def sn_client(mock_db):
-    app.dependency_overrides[get_db] = lambda: mock_db
+    async def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
     app.dependency_overrides.clear()
@@ -24,6 +28,7 @@ async def sn_client(mock_db):
 
 @pytest.mark.asyncio
 async def test_list_servicenow_tickets(sn_client, mock_db):
+    now = datetime.now(timezone.utc)
     ticket1 = ServiceNowTicket(
         ticket_id="INC0001001",
         caller="John Doe",
@@ -31,6 +36,7 @@ async def test_list_servicenow_tickets(sn_client, mock_db):
         priority="3 - Moderate",
         service="Active Directory",
         dq_flag=False,
+        created_at=now,
     )
     ticket2 = ServiceNowTicket(
         ticket_id="INC0001002",
@@ -40,6 +46,7 @@ async def test_list_servicenow_tickets(sn_client, mock_db):
         service="Payment Gateway",
         dq_flag=True,
         dq_reason="Blank caller",
+        created_at=now,
     )
 
     mock_db.scalar.return_value = 2
@@ -59,6 +66,7 @@ async def test_list_servicenow_tickets(sn_client, mock_db):
 
 @pytest.mark.asyncio
 async def test_get_servicenow_ticket_detail(sn_client, mock_db):
+    now = datetime.now(timezone.utc)
     ticket = ServiceNowTicket(
         ticket_id="INC0001001",
         caller="Alice Smith",
@@ -66,6 +74,7 @@ async def test_get_servicenow_ticket_detail(sn_client, mock_db):
         priority="2 - High",
         service="Network",
         dq_flag=False,
+        created_at=now,
     )
     mock_db.get.return_value = ticket
 

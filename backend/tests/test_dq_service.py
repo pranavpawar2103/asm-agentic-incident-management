@@ -76,7 +76,6 @@ def test_ticket_matches_rule():
         field="short_description",
         operator="contains",
         value="test",
-        action="flag",
         is_enabled=True,
     )
     assert ticket_matches_rule(rule_match, ticket) is True
@@ -89,19 +88,17 @@ def test_ticket_matches_rule():
         field="short_description",
         operator="contains",
         value="test",
-        action="flag",
         is_enabled=True,
     )
     assert ticket_matches_rule(rule_diff_service, ticket) is False
 
     # Mismatched source
     rule_diff_source = DQRule(
-        name="Jira only",
+        name="JIRA only",
         source="JIRA",
         field="short_description",
         operator="contains",
         value="test",
-        action="flag",
         is_enabled=True,
     )
     assert ticket_matches_rule(rule_diff_source, ticket) is False
@@ -112,7 +109,6 @@ def test_ticket_matches_rule():
         field="non_existent_column",
         operator="equals",
         value="test",
-        action="flag",
         is_enabled=True,
     )
     assert ticket_matches_rule(rule_invalid_field, ticket) is False
@@ -126,7 +122,6 @@ async def test_execute_dq_run_first_match_wins():
         field="short_description",
         operator="contains",
         value="test",
-        action="flag",
         is_enabled=True,
         apply_to="both",
     )
@@ -135,7 +130,6 @@ async def test_execute_dq_run_first_match_wins():
         name="Rule 2",
         field="short_description",
         operator="is_not_empty",
-        action="flag",
         is_enabled=True,
         apply_to="both",
     )
@@ -143,7 +137,7 @@ async def test_execute_dq_run_first_match_wins():
     ticket = ServiceNowTicket(
         ticket_id="INC100",
         short_description="this is a test",
-        dq_status="unreviewed",
+        dq_flag=False,
         dq_reason=None,
     )
 
@@ -162,6 +156,6 @@ async def test_execute_dq_run_first_match_wins():
     assert run.tickets_evaluated == 1
     assert run.tickets_flagged == 1
     # Ticket flagged by first matching rule
-    assert ticket.dq_status == "flagged"
+    assert ticket.dq_flag is True
     assert ticket.dq_reason == "Rule 1"
     assert mock_db.commit.called

@@ -60,3 +60,8 @@ frontend/
   npm run build
   ```
   and ensure there are 0 TypeScript and lint errors.
+
+---
+
+## Related References
+- For quick reference rules and component conventions, see [`frontend-guidelines.md`](./frontend-guidelines.md).

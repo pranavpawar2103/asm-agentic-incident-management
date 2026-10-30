@@ -23,7 +23,7 @@ COPY app /app/app
 
 # SQLite lives on a writable volume; source data (tickets, KB) is mounted read-only at /data
 RUN mkdir -p /app/var && chown appuser:appuser /app/var
-ENV DATABASE_URL=sqlite:////app/var/ams.db \
+ENV DATABASE_URL=sqlite+aiosqlite:////app/var/ams.db \
     TICKETS_FILE=/data/tickets/ams_tickets.xlsx
 
 USER appuser

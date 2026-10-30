@@ -10,7 +10,7 @@ from app.core.config import settings
 from app.core.exceptions import global_exception_handler
 from app.core.logging import setup_logging
 from app.core.middleware import RequestLoggingMiddleware
-from app.db.session import close_db
+from app.db.session import close_db, init_local_db
 
 logger = logging.getLogger("app.main")
 
@@ -21,6 +21,7 @@ async def lifespan(app: FastAPI):
     setup_logging()
     logger.info(f"Starting {settings.PROJECT_NAME} [{settings.ENVIRONMENT}]")
     try:
+        await init_local_db()
         yield
     finally:
         logger.info(f"Shutting down {settings.PROJECT_NAME}")

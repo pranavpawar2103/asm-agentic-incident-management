@@ -16,13 +16,14 @@ class Base(DeclarativeBase):
     """Declarative base for all ORM models."""
 
 
-engine: AsyncEngine = create_async_engine(
-    settings.DATABASE_URL,
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_MAX_OVERFLOW,
-    pool_pre_ping=settings.DB_POOL_PRE_PING,
-    echo=settings.DB_ECHO,
-)
+engine_options: dict = {
+    "pool_pre_ping": settings.DB_POOL_PRE_PING,
+    "echo": settings.DB_ECHO,
+}
+if not settings.DATABASE_URL.startswith("sqlite"):
+    engine_options.update(pool_size=settings.DB_POOL_SIZE, max_overflow=settings.DB_MAX_OVERFLOW)
+
+engine: AsyncEngine = create_async_engine(settings.DATABASE_URL, **engine_options)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
@@ -40,6 +41,13 @@ async def check_db_connection() -> None:
         await conn.execute(text("SELECT 1"))
 
 
+async def init_local_db() -> None:
+    """Create the demo schema when the application is run with local SQLite."""
+    if settings.DATABASE_URL.startswith("sqlite"):
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+
 async def close_db() -> None:
     """Dispose of engine connection pool."""
     await engine.dispose()
@@ -52,4 +60,3 @@ async def get_db() -> AsyncIterator[AsyncSession]:
             yield session
         finally:
             await session.close()
-

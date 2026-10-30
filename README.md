@@ -95,6 +95,7 @@ The expected outcome for every ticket: whether it should pass Data Quality, what
 | `POST /api/v1/ingest` | Load all three sources into the database. Safe to re-run: upserts and keeps agent results |
 | `GET /api/v1/tickets` | List tickets, newest first. Filters: `source`, `status`, `application`, `pipeline_status`; paging with `limit` / `offset` |
 | `GET /api/v1/tickets/{id}` | Full ticket with its original source row and agent audit trail |
+| `POST /api/v1/tickets/{id}/triage` | Run deterministic, explainable priority reassessment for one open ticket |
 | `GET /api/v1/health` | Liveness check |
 
 During ingestion every source is mapped to one common ticket format. For example, ServiceNow `2 - High` and JIRA `High` both become `reported_priority = 2`. Open tickets get `pipeline_status = pending` and closed ones `historical`.

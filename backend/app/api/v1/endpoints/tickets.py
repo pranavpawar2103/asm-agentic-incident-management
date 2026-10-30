@@ -4,11 +4,13 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from app.agents.triage import triage_ticket
 from app.core.config import settings
 from app.db.session import get_db
-from app.models.ticket import Ticket
-from app.schemas.ticket import IngestResponse, TicketDetail, TicketList
+from app.models.ticket import AgentRun, Ticket
+from app.schemas.ticket import AgentRunOut, IngestResponse, TicketDetail, TicketList
 from app.services.ingestion import ingest_workbook
 
 router = APIRouter(tags=["tickets"])
@@ -18,8 +20,7 @@ router = APIRouter(tags=["tickets"])
 async def ingest(db: AsyncSession = Depends(get_db)) -> IngestResponse:
     """Read ServiceNow, JIRA and Mailbox tickets from the workbook and upsert them. Safe to re-run."""
     try:
-        # Note: sync ingestion helper
-        result = ingest_workbook(db.sync_session, settings.TICKETS_FILE)
+        result = await db.run_sync(ingest_workbook, settings.TICKETS_FILE)
         await db.commit()
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
@@ -55,7 +56,37 @@ async def list_tickets(
 @router.get("/tickets/{ticket_id}", response_model=TicketDetail, summary="Get one ticket")
 async def get_ticket(ticket_id: str, db: AsyncSession = Depends(get_db)) -> Ticket:
     """Full ticket with its original source row and agent audit trail."""
-    ticket = await db.get(Ticket, ticket_id)
+    ticket = await db.scalar(
+        select(Ticket).options(selectinload(Ticket.agent_runs)).where(Ticket.id == ticket_id)
+    )
     if ticket is None:
         raise HTTPException(status_code=404, detail=f"Ticket {ticket_id} not found")
     return ticket
+
+
+@router.post("/tickets/{ticket_id}/triage", response_model=AgentRunOut, summary="Run the triage agent")
+async def triage(ticket_id: str, db: AsyncSession = Depends(get_db)) -> AgentRun:
+    """Reassess one open ticket and persist an explainable priority recommendation."""
+    ticket = await db.get(Ticket, ticket_id)
+    if ticket is None:
+        raise HTTPException(status_code=404, detail=f"Ticket {ticket_id} not found")
+    if ticket.pipeline_status == "historical":
+        raise HTTPException(status_code=409, detail="Historical tickets cannot be triaged")
+
+    result = triage_ticket(ticket)
+    run = AgentRun(
+        ticket_id=ticket.id,
+        agent="triage",
+        verdict=f"P{result.priority}",
+        output={
+            "reported_priority": ticket.reported_priority,
+            "recommended_priority": result.priority,
+            "rule": result.rule,
+            "reason": result.reason,
+            "confidence": result.confidence,
+        },
+    )
+    db.add(run)
+    await db.commit()
+    await db.refresh(run)
+    return run

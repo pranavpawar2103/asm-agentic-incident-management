@@ -35,3 +35,33 @@ async def test_get_ticket_normalises_source_fields(client):
 async def test_get_unknown_ticket_returns_404(client):
     response = await client.get("/api/v1/tickets/INC9999999")
     assert response.status_code == 404
+
+
+async def test_triage_reassesses_priority_and_persists_audit_run(client):
+    await client.post("/api/v1/ingest")
+
+    response = await client.post("/api/v1/tickets/AMS-1209/triage")
+
+    assert response.status_code == 200
+    run = response.json()
+    assert run["agent"] == "triage"
+    assert run["verdict"] == "P3"
+    assert run["output"] == {
+        "reported_priority": 1,
+        "recommended_priority": 3,
+        "rule": "single_user_access_issue",
+        "reason": "The ticket describes an individual access issue without wider impact.",
+        "confidence": 0.88,
+    }
+
+    detail = (await client.get("/api/v1/tickets/AMS-1209")).json()
+    assert len(detail["agent_runs"]) == 1
+    assert detail["agent_runs"][0]["id"] == run["id"]
+
+
+async def test_triage_rejects_historical_ticket(client):
+    await client.post("/api/v1/ingest")
+
+    response = await client.post("/api/v1/tickets/INC0010231/triage")
+
+    assert response.status_code == 409

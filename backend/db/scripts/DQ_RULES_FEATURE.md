@@ -10,7 +10,7 @@ Scripts: [01_create_servicenow_tickets.sql](01_create_servicenow_tickets.sql), [
 - Users can create, edit, delete and toggle (enable/disable) rules.
 - A rule is structured: a field, an operator and a value (e.g. `description length_lt 50`, `short_description contains 'test'`).
 - When a rule matches, the ticket is flagged and the rule name is stored as the reason.
-- There is a map of which rule matched which ticket.
+- Rules are checked in order and the first match wins. Which rule flagged which ticket is stored per run.
 - A rule can be applied to existing unresolved tickets, to upcoming tickets, or both. This is configurable.
 - Rules can be global or bound to a source or a service.
 - Every apply is kept as history so it can be reverted.
@@ -22,22 +22,22 @@ Scripts: [01_create_servicenow_tickets.sql](01_create_servicenow_tickets.sql), [
 |---|---|
 | `servicenow_tickets` | Tickets plus `dq_flag` (default false) and `dq_reason`. `priority` is text, e.g. `4 - Low`. |
 | `dq_rules` | The rules: `field`, `operator`, `value`, `source`, `service`, `apply_to`, `is_enabled`, `deleted_at`. |
-| `dq_runs` | One row per apply: trigger (`manual`/`ingestion`), scope, rules snapshot, counts, status (`completed`/`reverted`). |
-| `dq_run_tickets` | Per ticket changed by a run: flag and reason before and after. Used for revert. |
-| `dq_rule_matches` | Map of run, rule and ticket: which rule matched which ticket. |
+| `dq_runs` | One row per apply: trigger (`manual`/`ingestion`), scope, rules snapshot, counts, status (`running`/`completed`/`failed`/`reverted`). |
+| `dq_run_tickets` | Per ticket flagged by a run: the `rule_id` that matched, and `reverted_dq_flag` / `reverted_dq_reason`, the values restored if the run is reverted. |
 
 Details:
 - Operators: `equals`, `not_equals`, `contains`, `not_contains`, `starts_with`, `regex`, `is_empty`, `is_not_empty`, `length_lt`, `length_gt`.
 - `source` or `service` NULL means the rule is global or applies to any service.
 - `apply_to`: `existing` (stored tickets with `closed_at IS NULL`), `new` (incoming tickets), `both`.
 - Rule names are unique among non-deleted rules (case-insensitive).
+- First match wins: rules are evaluated in `id` order and a ticket stops at its first matching rule. `dq_reason` holds that one rule name.
 - Not yet run against a database. Needs `01` before `02`.
 
 ## Assumptions
 
 - A match sets `dq_flag = true` and `dq_reason = <rule name>`. There is no per-rule outcome such as `needs_info`.
 - "Unresolved" means `closed_at IS NULL`.
-- Revert restores the flags saved in `dq_run_tickets` for that run. It does not replay older rule states.
+- Revert restores the `reverted_dq_flag` / `reverted_dq_reason` saved in `dq_run_tickets` for that run. It does not replay older rule states.
 - `field` is free text naming a ticket column; the app validates it.
 - No generic audit table for rule edits. Only apply runs are recorded.
 - The old generic `tickets` and `agent_runs` tables are no longer in the scripts. `app/models/ticket.py` still defines them and needs updating separately.
@@ -47,4 +47,3 @@ Details:
 1. Should reverting an older run be blocked while a newer run touched the same ticket? (App logic, not a table change.)
 2. When Jira and Mail tables arrive, should rules read each source's own columns, or a common set of fields?
 3. Should a rule's edit history be kept (the runs only store a rules snapshot)?
-4. Should a ticket matched by several rules show all rule names in `dq_reason`, or only the first? (All matches are in `dq_rule_matches` either way.)

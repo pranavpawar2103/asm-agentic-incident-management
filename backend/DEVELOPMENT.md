@@ -78,7 +78,7 @@ Schema is managed by plain SQL scripts that run from a workbench (Supabase SQL E
 - Tables:
   - `servicenow_tickets`: tickets in the AMS team's schema, plus `dq_flag` / `dq_reason`. Tickets are always stored; the flag marks them as filtered out by data quality rules.
   - `dq_rules`: user-managed rules (`field`, `operator`, `value`, optional `source` / `service`, `apply_to` = existing/new/both, `is_enabled` toggle, soft delete via `deleted_at`).
-  - `dq_runs`, `dq_run_tickets`, `dq_rule_matches`: history of rule applies, per-ticket before/after flags (used to revert a run), and which rule matched which ticket.
+  - `dq_runs`, `dq_run_tickets`: history of rule applies, and per ticket flagged by a run the matching `rule_id` (first match wins) plus `reverted_dq_flag` / `reverted_dq_reason` (restored when the run is reverted).
 - Design notes, assumptions and open questions: [`db/scripts/DQ_RULES_FEATURE.md`](db/scripts/DQ_RULES_FEATURE.md).
 - Known gap: `app/models/ticket.py` still defines the older `tickets` / `agent_runs` tables and does not match these scripts yet. Update the models and services before using the new tables from code.
 

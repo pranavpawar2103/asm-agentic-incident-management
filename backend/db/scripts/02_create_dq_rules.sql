@@ -1,4 +1,4 @@
--- Data quality rules, apply runs and rule-to-ticket matches (PostgreSQL / Supabase). Safe to re-run.
+-- Data quality rules, apply runs and the tickets each run flagged (PostgreSQL / Supabase). Safe to re-run.
 -- Run after 01_create_servicenow_tickets.sql.
 
 -- A rule: "<field> <operator> <value>" -> flags the ticket (dq_flag = true, dq_reason = rule name).
@@ -31,29 +31,21 @@ CREATE TABLE IF NOT EXISTS dq_runs (
     rules_snapshot JSONB NOT NULL DEFAULT '[]',   -- rules as they were when applied
     tickets_evaluated INTEGER NOT NULL DEFAULT 0,
     tickets_flagged INTEGER NOT NULL DEFAULT 0,
-    status VARCHAR(16) NOT NULL DEFAULT 'completed' CHECK (status IN ('completed', 'reverted')),
+    status VARCHAR(16) NOT NULL DEFAULT 'running' CHECK (status IN ('running', 'completed', 'failed', 'reverted')),
     started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     finished_at TIMESTAMPTZ,
     reverted_at TIMESTAMPTZ
 );
 
--- Per ticket changed by a run: the flag before and after, so a run can be reverted.
+-- Per ticket flagged by a run (first matching rule wins, in id order).
+-- rule_id = the rule that matched; reverted_* = the values restored on the ticket if the run is reverted.
 CREATE TABLE IF NOT EXISTS dq_run_tickets (
     run_id INTEGER NOT NULL REFERENCES dq_runs (id) ON DELETE CASCADE,
     ticket_id VARCHAR(32) NOT NULL REFERENCES servicenow_tickets (ticket_id) ON DELETE CASCADE,
-    prev_dq_flag BOOLEAN NOT NULL,
-    prev_dq_reason VARCHAR(256),
-    new_dq_flag BOOLEAN NOT NULL,
-    new_dq_reason VARCHAR(256),
+    rule_id INTEGER NOT NULL REFERENCES dq_rules (id),
+    reverted_dq_flag BOOLEAN NOT NULL,
+    reverted_dq_reason VARCHAR(256),
     PRIMARY KEY (run_id, ticket_id)
 );
-
--- Map: which rule matched which ticket in which run.
-CREATE TABLE IF NOT EXISTS dq_rule_matches (
-    run_id INTEGER NOT NULL REFERENCES dq_runs (id) ON DELETE CASCADE,
-    rule_id INTEGER NOT NULL REFERENCES dq_rules (id),
-    ticket_id VARCHAR(32) NOT NULL REFERENCES servicenow_tickets (ticket_id) ON DELETE CASCADE,
-    PRIMARY KEY (run_id, rule_id, ticket_id)
-);
-CREATE INDEX IF NOT EXISTS ix_dq_rule_matches_ticket ON dq_rule_matches (ticket_id);
-CREATE INDEX IF NOT EXISTS ix_dq_rule_matches_rule ON dq_rule_matches (rule_id);
+CREATE INDEX IF NOT EXISTS ix_dq_run_tickets_ticket ON dq_run_tickets (ticket_id);
+CREATE INDEX IF NOT EXISTS ix_dq_run_tickets_rule ON dq_run_tickets (rule_id);

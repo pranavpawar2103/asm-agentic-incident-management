@@ -5,6 +5,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
+from app.admin import models  # noqa: F401  (config_overrides, config_changes)
 from app.db.session import Base, get_db
 from app.main import app
 from app.models import ticket  # noqa: F401  (registers models on Base.metadata)

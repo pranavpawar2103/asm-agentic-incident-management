@@ -15,22 +15,25 @@ flowchart LR
     subgraph data["data/ (stand-ins for external systems)"]
         tickets["tickets/ams_tickets.xlsx<br/>ServiceNow 50, JIRA 30, Mailbox 20"]
         kb["knowledge_base/*.md<br/>7 apps, 35 KB articles"]
-        registry["registry/*.yaml<br/>rules, app terms, PII settings"]
+        registry["registry/common, registry/data_quality<br/>PII, app terms, rules, prompts"]
     end
 
     subgraph backend["backend/ (FastAPI service)"]
-        db[("PostgreSQL (Supabase)<br/>tickets: one common format<br/>ticket_comments: replies<br/>agent_runs: every agent's verdict")]
+        db[("PostgreSQL (Supabase)<br/>tickets: one common format<br/>ticket_comments: replies<br/>agent_runs: every agent's verdict<br/>config_overrides, config_changes")]
         dq["Data Quality agent"] --> triage["Triage agent"] --> res["Resolution agent"]
         mask["PII masking<br/>(Presidio)"]
+        client["call_model()<br/>llm/client.py"]
+        admin["Admin API<br/>runtime config"]
     end
 
-    llm["LLM"]
+    llm["Claude<br/>(Claude API now, provider by config)"]
     eval["evaluation/<br/>answer key + scoring reports"]
 
     tickets -- ingest --> db
     db --> dq
-    registry -. configures .-> dq & mask
-    dq & triage & res -- every model call --> mask -- placeholders only --> llm
+    registry -. defaults .-> dq & mask & client
+    admin -. overrides .-> db
+    dq & triage & res -- every model call --> mask -- placeholders only --> client --> llm
     res -- search --> kb
     dq & triage & res -- save verdict --> db
     eval -. compare results .-> db
@@ -40,13 +43,13 @@ flowchart LR
 
 ```text
 .
-├── backend/               # FastAPI service: ingestion, database, agents (see backend/README.md)
+├── backend/               # FastAPI service: ingestion, database, agents, model access, admin (see backend/README.md)
 ├── frontend/              # Next.js 16 (App Router) + shadcn/ui dashboard (see frontend/DEVELOPMENT.md)
 ├── data/                  # Stand-ins for external systems, mounted read-only into the backend
 │   ├── tickets/           #   servicenow_tickets.xlsx (DB schema) and ams_tickets.xlsx (JIRA, Mailbox)
 │   ├── rules/             #   dq_rules.xlsx: sample Data Quality rules (dq_rules table schema)
 │   ├── knowledge_base/    #   One Confluence-style page per application
-│   └── registry/          #   Editable rules, application terms and PII settings used by the agents
+│   └── registry/          #   Editable rules, application terms, PII settings and prompts; admin can override them at runtime
 ├── evaluation/            # Answer key and scoring reports; never read by the pipeline
 ├── docker-compose.yml
 └── README.md
@@ -105,6 +108,8 @@ The expected outcome for every ticket: whether it should pass Data Quality, what
 | `GET /api/v1/tickets/{id}` | Full ticket with its original source row, replies and agent audit trail |
 | `POST /api/v1/tickets/{id}/comments` | Add a reply. A reply from the reporter sends an `awaiting_info` ticket back to `pending` |
 | `POST /api/v1/data-quality/run` | Check every pending ticket. Safe to re-run: unchanged tickets are skipped |
+| `POST /api/v1/data-quality/tickets/{id}/check` | Check one pending ticket: rules, then the model if the rules cannot decide |
+| `/api/v1/admin/settings`, `/api/v1/admin/documents`, `/api/v1/admin/changes` | Change settings, rules, PII terms and prompts at runtime; change history. Needs `X-Admin-Key` |
 | `GET /api/v1/health` | Liveness check |
 
 During ingestion every source is mapped to one common ticket format. For example, ServiceNow `2 - High` and JIRA `High` both become `reported_priority = 2`. Open tickets get `pipeline_status = pending` and closed ones `historical`.
@@ -120,7 +125,9 @@ During ingestion every source is mapped to one common ticket format. For example
 
 The Data Quality rules stage (no model) stops only tickets it is certain about: test tickets become `rejected`; placeholder descriptions ("n/a", "tbd") and near-empty ones become `awaiting_info`. Everything else stays `pending` for the model step. Thresholds and terms live in `data/registry/` and are scored with `python evaluation/dq_rules_report.py`.
 
-Personal information is masked with Microsoft Presidio: names, emails, phones, employee IDs, PAN, Aadhaar, bank accounts and cards become numbered placeholders such as `<PERSON_1>`. Application names, error codes, record IDs, sites and dates stay readable. `python backend/scripts/mask_servicenow_tickets.py` writes `data/tickets/servicenow_tickets_masked.xlsx`, with the same person getting the same placeholder across the file. `python evaluation/pii_leak_report.py` checks that no known name or email survives.
+The Data Quality model step asks Claude one question about each ticket the rules left undecided: is it complete enough to work on? The answer is `passed` (`dq_passed`) or `needs_info` with what is missing and a draft chase email (`awaiting_info`); the email is never sent automatically. Every agent calls the model through one function, `call_model()` in `backend/app/llm/client.py`. Model calls are off until `LLM_ENABLED=true`. The prompt lives in `data/registry/prompts.yaml`. Settings, rules, PII terms and prompts can be changed at runtime through the admin API, with no restart; see [backend/README.md](backend/README.md#configuration-and-admin).
+
+Personal information is masked with Microsoft Presidio before any text reaches a model: names, emails, phones, employee IDs, PAN, Aadhaar, bank accounts and cards become numbered placeholders such as `<PERSON_1>`, and the real values are put back into the model's answer locally. Application names, error codes, record IDs, sites and dates stay readable. The database keeps the original data. `python backend/scripts/mask_servicenow_tickets.py` writes `data/tickets/servicenow_tickets_masked.xlsx`, with the same person getting the same placeholder across the file. `python evaluation/pii_leak_report.py` checks that no known name or email survives.
 
 ## Quick start
 
@@ -157,7 +164,9 @@ Set `DATABASE_URL` in `backend/.env` (Supabase, `postgresql+asyncpg://...`); nev
 | PostgreSQL (Supabase) async connection, DB scripts, frontend template | Done |
 | Data Quality: rules stage, statuses, replies | Done |
 | PII masking (Presidio): personal information only; masked ServiceNow export | Done |
-| Data Quality: model check, "missing information" email draft | Next |
+| Data Quality: model check, "missing information" email draft | Built, tested offline; first live call next |
+| Model client (`call_model`), provider switch, kill switch | Done |
+| Admin API: runtime settings, rules, PII terms, prompts, change history | Done (shared key; real logins planned) |
 | Priority rulebook + Triage agent | Planned |
 | Resolution agent over the knowledge base | Planned |
 | Chat UI (`frontend/`) | Planned |

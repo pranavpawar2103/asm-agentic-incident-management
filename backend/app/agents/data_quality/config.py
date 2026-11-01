@@ -4,7 +4,8 @@ import re
 from dataclasses import dataclass
 from functools import lru_cache
 
-from app.core.registry import load_registry
+from app.core.config import config_version
+from app.core.registry import load_registry, register_document
 
 
 @dataclass(frozen=True)
@@ -29,8 +30,13 @@ def _any_term(terms: list[str]) -> re.Pattern:
     return re.compile(rf"\b(?:{alternatives})s?\b", re.I)
 
 
-@lru_cache
 def get_config() -> DQConfig:
+    return _build(config_version())
+
+
+@lru_cache(maxsize=1)
+def _build(version: int) -> DQConfig:
+    """Rebuilt when an admin changes the rules (the config version moves)."""
     rules = load_registry("dq_rules.yaml")
     return DQConfig(
         min_body_length=rules["min_body_length"],
@@ -42,3 +48,7 @@ def get_config() -> DQConfig:
         identifier=tuple(re.compile(p) for p in rules["identifier"]),
         apps={name: _any_term(app["names"] + app["keywords"]) for name, app in load_registry("apps.yaml").items()},
     )
+
+
+register_document("data_quality_rules", "dq_rules.yaml", get_config)
+register_document("apps", "apps.yaml", get_config)  # the rules read application names too

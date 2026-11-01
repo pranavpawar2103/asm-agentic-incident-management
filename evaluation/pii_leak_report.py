@@ -15,9 +15,9 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "backend"))
 
 from app.core.config import settings  # noqa: E402
+from app.privacy.masking import Masker, PiiLeakError  # noqa: E402
 from app.db.session import Base  # noqa: E402
 from app.models.ticket import Ticket  # noqa: E402
-from app.privacy.masking import Masker, PiiLeakError  # noqa: E402
 from app.services.ingestion import ingest_workbook  # noqa: E402
 
 

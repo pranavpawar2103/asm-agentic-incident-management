@@ -6,13 +6,15 @@ readable. Within one Masker the same value always gets the same placeholder, and
 
 import re
 from collections import Counter
+from collections.abc import Iterable
 from functools import lru_cache
-from typing import Iterable, NamedTuple, Optional
+from typing import NamedTuple
 
 from presidio_analyzer import AnalyzerEngine, Pattern, PatternRecognizer, RecognizerResult
 from presidio_analyzer.nlp_engine import NlpEngineProvider
 
-from app.core.registry import load_registry
+from app.core.config import config_version
+from app.core.registry import load_registry, register_document
 
 PLACEHOLDER = re.compile(r"<[A-Z]+(?:_[A-Z]+)*_\d+>")
 NER = "SpacyRecognizer"
@@ -38,9 +40,13 @@ class _Engine(NamedTuple):
     keep: frozenset[str]  # ordinary words NER must not mask
 
 
-@lru_cache
 def _engine() -> _Engine:
-    """Presidio analyzer with our recognisers, built once."""
+    return _build_engine(config_version())
+
+
+@lru_cache(maxsize=1)
+def _build_engine(version: int) -> _Engine:
+    """Presidio analyzer with our recognisers, rebuilt after an admin change (the config version moves)."""
     config = load_registry("pii.yaml")
     nlp = NlpEngineProvider(nlp_configuration={
         "nlp_engine_name": "spacy",
@@ -87,7 +93,7 @@ def _without_overlaps(results: list[RecognizerResult]) -> list[RecognizerResult]
 
 
 class Masker:
-    def __init__(self, known_names: Iterable[Optional[str]] = (), known_emails: Iterable[Optional[str]] = ()):
+    def __init__(self, known_names: Iterable[str | None] = (), known_emails: Iterable[str | None] = ()):
         """known_names / known_emails come from the ticket's own fields and are always masked, even where NER misses them."""
         system = {a.casefold() for a in load_registry("pii.yaml")["system_accounts"]}
         self._names = sorted({n.strip() for n in known_names if n and n.strip() and n.strip().casefold() not in system})
@@ -109,7 +115,7 @@ class Masker:
         self.counts[label] += 1
         return self._issued[key]
 
-    def mask(self, text: Optional[str]) -> MaskedText:
+    def mask(self, text: str | None) -> MaskedText:
         if not text or not text.strip():
             return MaskedText(text or "")
         engine = _engine()
@@ -143,3 +149,11 @@ class Masker:
         if unknown:
             raise UnknownPlaceholderError(f"Placeholders never issued: {', '.join(unknown)}")
         return PLACEHOLDER.sub(lambda m: self._values[m.group(0)], text)
+
+
+def _check_engine() -> None:
+    Masker().mask("check")  # builds the Presidio engine from the current documents
+
+
+register_document("pii", "pii.yaml", _check_engine)
+register_document("apps", "apps.yaml", _check_engine)

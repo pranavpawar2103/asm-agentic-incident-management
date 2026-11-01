@@ -1,6 +1,7 @@
 """Ticket ingestion and query endpoints."""
 
 from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession

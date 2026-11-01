@@ -1,16 +1,18 @@
 """FastAPI Application factory and lifecycle."""
 
-from contextlib import asynccontextmanager
 import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.admin.runtime_config import apply_overrides
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.exceptions import global_exception_handler
 from app.core.logging import setup_logging
 from app.core.middleware import RequestLoggingMiddleware
-from app.db.session import close_db
+from app.db.session import AsyncSessionLocal, close_db
 
 logger = logging.getLogger("app.main")
 
@@ -20,6 +22,8 @@ async def lifespan(app: FastAPI):
     """Lifecycle startup and shutdown events."""
     setup_logging()
     logger.info(f"Starting {settings.PROJECT_NAME} [{settings.ENVIRONMENT}]")
+    async with AsyncSessionLocal() as db:
+        await db.run_sync(apply_overrides)  # admin changes survive a restart
     try:
         yield
     finally:

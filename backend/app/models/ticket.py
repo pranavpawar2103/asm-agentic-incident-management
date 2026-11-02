@@ -1,8 +1,9 @@
 """Unified ticket model and agent audit trail."""
 
 from datetime import datetime, timezone
+from enum import StrEnum
 from typing import Any, Optional
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -10,6 +11,16 @@ from app.db.session import Base
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+class PipelineStatus(StrEnum):
+    """Where a ticket is in the agent pipeline."""
+    HISTORICAL = "historical"  # closed in the source; reference only, never processed
+    PENDING = "pending"  # waiting for the Data Quality check
+    AWAITING_INFO = "awaiting_info"  # information missing; chase email drafted
+    DQ_PASSED = "dq_passed"  # good enough, ready for Triage
+    REJECTED = "rejected"  # not a real ticket, e.g. a test
+    ERROR = "error"  # failed in a way that needs a person to look
 
 
 class Ticket(Base):
@@ -47,8 +58,7 @@ class Ticket(Base):
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
-    # pending -> picked up by the agent pipeline; historical -> already closed in the source, used as reference only
-    pipeline_status: Mapped[str] = mapped_column(String(32), index=True, default="pending")
+    pipeline_status: Mapped[str] = mapped_column(String(32), index=True, default=PipelineStatus.PENDING)
 
     raw: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)  # untouched source row
     ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -56,6 +66,9 @@ class Ticket(Base):
 
     agent_runs: Mapped[list["AgentRun"]] = relationship(
         back_populates="ticket", cascade="all, delete-orphan", order_by="AgentRun.created_at"
+    )
+    comments: Mapped[list["Comment"]] = relationship(
+        back_populates="ticket", cascade="all, delete-orphan", order_by="Comment.created_at"
     )
 
 
@@ -69,6 +82,22 @@ class AgentRun(Base):
     agent: Mapped[str] = mapped_column(String(32), index=True)  # data_quality, triage, resolution
     verdict: Mapped[str] = mapped_column(String(32))  # e.g. passed / failed, P2, resolved / no_match
     output: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    input_hash: Mapped[Optional[str]] = mapped_column(String(64))  # what the agent saw; a re-run is skipped if unchanged
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     ticket: Mapped[Ticket] = relationship(back_populates="agent_runs")
+
+
+class Comment(Base):
+    """A reply on a ticket. A reply from the reporter re-opens a ticket that is awaiting information."""
+
+    __tablename__ = "ticket_comments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ticket_id: Mapped[str] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), index=True)
+    author_email: Mapped[str] = mapped_column(String(256))
+    from_reporter: Mapped[bool] = mapped_column(Boolean, default=False)
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    ticket: Mapped[Ticket] = relationship(back_populates="comments")

@@ -14,7 +14,7 @@ from typing import Any, Callable, Iterator, Optional
 from openpyxl import load_workbook
 from sqlalchemy.orm import Session
 
-from app.models.ticket import Ticket
+from app.models.ticket import PipelineStatus, Ticket
 
 logger = logging.getLogger("app.ingestion")
 
@@ -167,12 +167,16 @@ def ingest_workbook(db: Session, path: Path) -> IngestResult:
     result = IngestResult()
     try:
         for sheet, mapper in SOURCES.items():
+            if sheet not in workbook.sheetnames:  # ServiceNow now has its own file and table
+                continue
             for row in _rows(workbook, sheet):
                 fields = mapper(row)
                 fields["raw"] = _raw(row)
                 ticket = db.get(Ticket, fields["id"])
                 if ticket is None:
-                    fields["pipeline_status"] = "historical" if fields["status"] in CLOSED_STATUSES else "pending"
+                    fields["pipeline_status"] = (
+                        PipelineStatus.HISTORICAL if fields["status"] in CLOSED_STATUSES else PipelineStatus.PENDING
+                    )
                     db.add(Ticket(**fields))
                     result.created += 1
                 else:

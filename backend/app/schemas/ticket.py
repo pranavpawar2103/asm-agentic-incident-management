@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from typing import Any, Optional
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -20,6 +21,23 @@ class AgentRunOut(BaseModel):
     agent: str
     verdict: str
     output: dict[str, Any]
+    created_at: datetime
+
+
+class CommentCreate(BaseModel):
+    """A reply on a ticket."""
+    author_email: str = Field(..., min_length=3, examples=["priya.raman@contoso.com"])
+    body: str = Field(..., min_length=1, examples=["It is PayrollPro, the payslip PDF fails with PDF-GEN-500 since Monday."])
+
+
+class CommentOut(BaseModel):
+    """A stored reply."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    author_email: str
+    from_reporter: bool
+    body: str
     created_at: datetime
 
 
@@ -57,6 +75,7 @@ class TicketDetail(TicketSummary):
     closed_at: Optional[datetime]
     raw: dict[str, Any]
     agent_runs: list[AgentRunOut]
+    comments: list[CommentOut]
 
 
 class TicketList(BaseModel):

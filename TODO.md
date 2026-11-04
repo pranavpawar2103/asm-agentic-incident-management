@@ -6,9 +6,9 @@ Context: [db/scripts/DQ_RULES_FEATURE.md](.agents/skills/dq-rules-workflow/refer
 |---|---|---|---|---|
 | 1 | Review DB scripts and the DQ rules feature notes | DONE | none | Open |
 | 2 | Create dummy data for the ServiceNow schema, covering the DQ rules | TBD | 1 | Open |
-| 3 | Create API endpoints | TBD | 1 | Open |
+| 3 | Create API endpoints | DONE | 1 | Complete |
 | 4 | Add Microsoft Presidio masking, run as a Celery worker with RabbitMQ | TBD | none (feeds 2 and 3) | Open |
-| 5 | Update the UI for DQ rule configuration | TBD | 3 | Open |
+| 5 | Update the UI for DQ rule configuration | DONE | 3 | Complete |
 | 6 | Add schemas for different ticket sources as well | TBD | none | Open |
 
 ## 1. Review DB scripts and feature notes

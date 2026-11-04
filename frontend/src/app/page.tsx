@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, ShieldAlert, BookOpen, ArrowRight, Activity } from "lucide-react";
+import { Header } from "@/components/layout/header";
+import { CheckCircle2, ShieldAlert, BookOpen, ArrowRight, ShieldCheck } from "lucide-react";
 
 export default function Home() {
   const agentStages = [
@@ -28,17 +29,9 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <header className="border-b">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 font-semibold text-lg tracking-tight">
-            <Activity className="h-5 w-5 text-primary" />
-            <span>AMS Incident Agent</span>
-          </div>
-          <Badge variant="outline">Pipeline Ready</Badge>
-        </div>
-      </header>
+      <Header />
 
-      <main className="flex-1 max-w-6xl mx-auto px-6 py-12 flex flex-col justify-center">
+      <main className="flex-1 max-w-6xl mx-auto px-6 py-12 flex flex-col justify-center w-full">
         <div className="max-w-2xl space-y-4 mb-10">
           <Badge variant="secondary">Automated Incident Operations</Badge>
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
@@ -68,9 +61,10 @@ export default function Home() {
         </div>
 
         <div className="flex flex-wrap items-center gap-4">
-          <Link href="#tickets">
+          <Link href="/dq-rules">
             <Button size="lg" className="flex items-center gap-2">
-              View Incident Dashboard
+              <ShieldCheck className="h-4 w-4" />
+              Manage DQ Rules
               <ArrowRight className="h-4 w-4" />
             </Button>
           </Link>

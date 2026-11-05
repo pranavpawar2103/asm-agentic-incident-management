@@ -8,12 +8,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.agents.triage.config import get_config
-from app.agents.triage.model_check import assess_priority, triage_priority_spec, verified
-from app.agents.triage.rules import Decision, Facts, decide, evaluate, find_rule
+from app.agents.triage.model_check import TriageAssessment, assess_priority, triage_priority_spec, verified
+from app.agents.triage.rules import Decision, Facts, RuleResult, decide, evaluate, find_rule, without_rulebook
 from app.agents.triage.signals import clean_text
 from app.agents.triage.verdict import Verdict
 from app.core.config import settings
-from app.llm import ModelError
+from app.llm import CallAudit, ModelError
 from app.models.ticket import AgentRun, PipelineStatus, Ticket
 from app.services.data_quality import OutageBreaker, fingerprint, last_run, reporter_text
 
@@ -43,18 +43,34 @@ def _recommendation(ticket: Ticket, decision: Decision | None, reason: str, ai: 
     shift = priority - reported if priority and reported else None
     downgrade = shift is not None and reported <= 2 and shift > 0
     leaned = bool(decision and decision.leaned_high)
+    kept = bool(decision and decision.kept_reported)
     return {
         "priority": priority,
         "reported_priority": reported,
         "shift": shift,
         "downgrade": downgrade,
         "leaned_high": leaned,
-        "needs_review": downgrade or leaned or (shift is not None and abs(shift) > get_config().review_shift),
+        "needs_review": downgrade or leaned or kept or (shift is not None and abs(shift) > get_config().review_shift),
         "rule": decision.rule if decision else None,
         "must_follow": decision.must_follow if decision else None,
         "reason": reason,
         "ai": ai,  # not_needed | used | off | failed
     }
+
+
+def model_decision(ticket: Ticket, body: str, outcome: RuleResult) -> tuple[Decision, TriageAssessment, list[str], CallAudit]:
+    """Ask the model for the missing facts, drop any it cannot quote, and calculate the priority from the rulebook.
+    Raises app.llm.ModelError when there is no usable answer."""
+    config = get_config()
+    answer, audit = assess_priority(ticket, body, outcome)
+    answer, dropped = verified(answer, f"{ticket.summary}\n{body}")
+    s = outcome.signals
+    facts = Facts(answer.application, answer.scope, s.windows, s.failed_jobs, lambda _: answer.context_applies)
+    rule = find_rule(config, answer.application, answer.rule)  # checked by TriageAssessment
+    decision = decide(rule, facts, clean_text(ticket.summary, body, config), config)
+    if answer.application is None:
+        decision = without_rulebook(decision, ticket.reported_priority)
+    return decision, answer, dropped, audit
 
 
 def triage_ticket(db: Session, ticket: Ticket, use_model: bool = True) -> tuple[AgentRun, ModelError | None]:
@@ -75,15 +91,10 @@ def triage_ticket(db: Session, ticket: Ticket, use_model: bool = True) -> tuple[
     error, ai = None, "off"
     if settings.LLM_ENABLED and use_model:
         try:
-            answer, audit = assess_priority(ticket, body, outcome)
+            decision, answer, dropped, audit = model_decision(ticket, body, outcome)
         except ModelError as exc:
             error, ai = exc, "failed"
         else:
-            answer, dropped = verified(answer, f"{ticket.summary}\n{body}")
-            s = outcome.signals
-            facts = Facts(answer.application, answer.scope, s.windows, s.failed_jobs, lambda _: answer.context_applies)
-            rule = find_rule(config, answer.application, answer.rule)  # checked by TriageAssessment
-            decision = decide(rule, facts, clean_text(ticket.summary, body, config), config)
             final = AgentRun(
                 ticket_id=ticket.id, agent=AGENT, verdict=Verdict.of(decision.priority), input_hash=final.input_hash,
                 output={"stage": "model", "rules_version": config.version,

@@ -61,10 +61,12 @@ class CallAudit:
     model: str
     prompt_version: str
     attempts: int
-    input_tokens: int
+    input_tokens: int  # not from the cache
     output_tokens: int
     latency_ms: int
     pii_masked: dict[str, int] = field(default_factory=dict)  # placeholders issued, per label
+    cache_read_tokens: int = 0  # billed at the cache-read rate
+    cache_write_tokens: int = 0
 
 
 def _sdk() -> anthropic.Anthropic | anthropic.AnthropicBedrockMantle:
@@ -92,7 +94,8 @@ def _request(spec: CallSpec, content: str):
     params: dict[str, Any] = {
         "model": model_id(),
         "max_tokens": spec.max_tokens,
-        "system": spec.system,
+        # cached: the instructions (and any rulebook in them) are identical on every call; ignored below 512 tokens
+        "system": [{"type": "text", "text": spec.system, "cache_control": {"type": "ephemeral"}}],
         "messages": [{"role": "user", "content": content}],
         "output_format": spec.output,
         "output_config": {"effort": settings.LLM_EFFORT},
@@ -124,7 +127,7 @@ def call_model[T: BaseModel](spec: CallSpec[T], user: MaskedText, masker: Masker
     wrapped = spec.wrapper.format(ticket=user)  # ticket text is untrusted data, kept inside its own block
     content = wrapped
     started = time.perf_counter()
-    tokens_in = tokens_out = 0
+    tokens_in = tokens_out = cache_read = cache_write = 0
     for attempt in range(1, attempts + 1):
         try:
             response = _request(spec, content)
@@ -136,6 +139,8 @@ def call_model[T: BaseModel](spec: CallSpec[T], user: MaskedText, masker: Masker
         else:
             tokens_in += response.usage.input_tokens
             tokens_out += response.usage.output_tokens
+            cache_read += getattr(response.usage, "cache_read_input_tokens", 0) or 0
+            cache_write += getattr(response.usage, "cache_creation_input_tokens", 0) or 0
             if response.stop_reason == "refusal":
                 _log(spec, "refused", attempt, started, tokens_in, tokens_out)
                 raise ModelRefusedError(f"{spec.name} refused")
@@ -154,6 +159,8 @@ def call_model[T: BaseModel](spec: CallSpec[T], user: MaskedText, masker: Masker
                         output_tokens=tokens_out,
                         latency_ms=round((time.perf_counter() - started) * 1000),
                         pii_masked=dict(masker.counts),
+                        cache_read_tokens=cache_read,
+                        cache_write_tokens=cache_write,
                     )
                     _log(spec, "ok", attempt, started, tokens_in, tokens_out)
                     return answer, audit

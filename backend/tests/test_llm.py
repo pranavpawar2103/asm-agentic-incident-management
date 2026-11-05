@@ -123,7 +123,8 @@ def test_refusal_and_outage_raise(provider):
 
 def test_bedrock_model_id_is_prefixed(monkeypatch):
     monkeypatch.setattr(settings, "LLM_PROVIDER", "bedrock")
-    assert llm_client.model_id() == "anthropic.claude-opus-5-5"
+    monkeypatch.setattr(settings, "LLM_MODEL", "claude-sonnet-5-5")
+    assert llm_client.model_id() == "anthropic.claude-sonnet-5-5"
 
 
 # Data Quality model stage through the API

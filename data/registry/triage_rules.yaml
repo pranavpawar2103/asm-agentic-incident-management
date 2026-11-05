@@ -120,16 +120,14 @@ applications:
         kb: KB-PAY-001
         about: Payslip blank or not generated
         match: ['\bpayslip\b.{0,60}\b(blank|not available|not generated|empty|0 ?KB)\b', '\bPDF-GEN-500\b', '\bPAY_PDF_GEN\b']
-        priority: 3
-        needs: [scope]
-        raise: [{ to: 2, scope: wide }]
+        priority: 3                                          # KB gives no raise; PAY_PDF_GEN can be rerun next day
       - name: overtime_wrong
         kb: KB-PAY-005
         about: Overtime or allowance missing or wrong
         match: ['\bovertime\b', '\ballowance\b', '\bTT_SYNC\b']
-        priority: 3
-        needs: [scope]
-        raise: [{ to: 2, scope: wide, window: payroll_window }]   # a whole department during the payroll window
+        priority: 3                                          # KB: P2 if a whole department, in the payroll window
+        raise: [{ to: 2, window: payroll_window, context: ['\b(whole|entire|all of the|all of our) (department|team)\b',
+                                                             '\b(all|every) (employees?|staff) in\b'] }]
       - name: tax_declaration_save
         kb: KB-PAY-003
         about: Tax declaration cannot be saved

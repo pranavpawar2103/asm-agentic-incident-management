@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.agents.triage.config import get_config
 from app.agents.triage.model_check import TriageAssessment, verified
-from app.agents.triage.rules import Decision, evaluate
+from app.agents.triage.rules import Decision, evaluate, without_rulebook
 from app.core import registry
 from app.core.config import bump_config_version, settings
 from app.db.session import Base
@@ -38,10 +38,11 @@ def test_reporter_urgency_words_are_ignored():
 
 
 def test_raise_needs_all_its_conditions():
-    text = "Several employees in Warehouse - Pune report overtime is lower than approved."
+    text = "The whole department in Warehouse - Pune reports overtime is lower than approved."
     assert evaluate("Overtime wrong", text, "PayrollPro", OCTOBER_10).verdict == "P3"
     assert evaluate("Overtime wrong", text, "PayrollPro", OCTOBER_22).verdict == "P2"
-    assert evaluate("Overtime wrong", "My overtime is missing.", "PayrollPro", OCTOBER_22).verdict == "P3"
+    several = "Several employees in Warehouse - Pune report overtime is lower than approved."
+    assert evaluate("Overtime wrong", several, "PayrollPro", OCTOBER_22).verdict == "P3"  # KB: a whole department
 
 
 def test_scope_raises_a_single_device_issue_to_a_site_outage():
@@ -98,6 +99,15 @@ def test_review_flags():
     assert not flags(4, 3)["needs_review"]
     assert flags(4, 2, leaned=True)["needs_review"]
     assert flags(None, 3)["shift"] is None
+
+
+def test_application_outside_the_rulebook_keeps_the_reporters_priority():
+    guess = Decision(2, "outage", "Service unavailable; unknown impact, Tier 2: P2", leaned_high=True)
+    kept = without_rulebook(guess, reported=4)
+    assert (kept.priority, kept.kept_reported) == (4, True)
+    assert without_rulebook(guess, reported=None) is guess  # nothing to keep (e-mail)
+    security = Decision(1, "security_incident", "", must_follow="security_incident")
+    assert without_rulebook(security, reported=4) is security  # must-follow rules still win
 
 
 def test_model_facts_need_a_real_quote():
@@ -180,8 +190,10 @@ def test_model_stage_reports_facts_and_the_code_sets_the_priority(db, provider):
     content = request["messages"][0]["content"]
     assert "Ganesh" not in content  # the reporter's name is masked
     assert "Candidate rule: scanner_sync" in content and "Facts still unknown: scope" in content
-    assert "StockSense (Tier 1)" in request["system"] and "PAY_CALC_MONTHLY" in request["system"]
-    assert run.output["audit"]["prompt_version"] == "triage_priority@2"
+    system = request["system"][0]
+    assert "StockSense (Tier 1)" in system["text"] and "PAY_CALC_MONTHLY" in system["text"]
+    assert system["cache_control"] == {"type": "ephemeral"}  # the rulebook is cached across calls
+    assert run.output["audit"]["prompt_version"] == "triage_priority@3"
 
 
 def test_model_outage_falls_back_to_the_rules(db, provider):  # noqa: F811

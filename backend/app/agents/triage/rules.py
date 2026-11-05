@@ -33,6 +33,7 @@ class Decision:
     reason: str
     must_follow: str | None = None
     leaned_high: bool = False  # an unknown scope was counted as wide because that could make it P1/P2
+    kept_reported: bool = False  # no rulebook for the application, so the reporter's priority stands
 
 
 @dataclass(frozen=True)
@@ -126,6 +127,14 @@ def decide(rule, facts: Facts, text: str, config: TriageConfig) -> Decision | No
         return None
     name = rule.name if rule else must.name
     return Decision(priority, name, reason, must.name if must else None, leaned)
+
+
+def without_rulebook(decision: Decision, reported: int | None) -> Decision:
+    """An application outside the rulebook gives no basis to change the reporter's priority; must-follow rules still win."""
+    if decision.must_follow or reported is None or reported == decision.priority:
+        return decision
+    reason = f"Application not in the rulebook: the reporter's P{reported} is kept (the rules would give P{decision.priority})"
+    return Decision(reported, decision.rule, reason, kept_reported=True)
 
 
 def evaluate(summary: str, body: str, application: str | None = None, opened_at=None) -> RuleResult:

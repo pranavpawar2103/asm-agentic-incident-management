@@ -42,7 +42,7 @@ dq_completeness:
   # eval measures it. Bump `version` here whenever that schema changes.
 
 triage_priority:
-  version: triage_priority@2
+  version: triage_priority@3
   max_tokens: 4096
 
   # {rulebook} is filled in from data/registry/triage_rules.yaml and jobs.yaml, so the model always sees the rules
@@ -56,6 +56,8 @@ triage_priority:
     - rule: a must-follow rule marked "You may choose it" if it applies; otherwise a rule of that application;
       otherwise the closest generic rule. The rule the code matched, if any, is given as the candidate.
     - scope: single (one person or device), wide (a team, a site, many users or customers), unknown (not stated).
+      A ticket that names one person, device, station, account or record, and gives no sign that others are
+      affected, is single; quote the words that name it. Use unknown only when the ticket names no one and nothing.
     - scope_quote: the exact words from the ticket that show the scope. Copy them; do not paraphrase.
     - context_applies: true only if the ticket describes the business context in the chosen rule's "raised when" note.
     - context_quote: the exact words from the ticket that show it.

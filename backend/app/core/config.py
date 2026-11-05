@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     # Data Quality run
     DQ_OUTAGE_BREAKER: int = Field(5, ge=1)  # consecutive "model unavailable" failures that stop a run
 
+    # Triage run
+    TRIAGE_OUTAGE_BREAKER: int = Field(5, ge=1)  # same, for the Triage model stage
+
     # Admin API. Unset key = admin endpoints switched off. Set both in the environment only, never through the API.
     ADMIN_API_KEY: str = ""
     ALLOWED_AWS_REGIONS: list[str] = ["ca-central-1"]
@@ -85,6 +88,7 @@ ADMIN_EDITABLE = frozenset({
     "LLM_VALIDATION_ATTEMPTS",
     "AWS_REGION",
     "DQ_OUTAGE_BREAKER",
+    "TRIAGE_OUTAGE_BREAKER",
 })
 
 settings = Settings()

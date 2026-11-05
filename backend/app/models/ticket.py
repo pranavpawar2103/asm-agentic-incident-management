@@ -19,6 +19,7 @@ class PipelineStatus(StrEnum):
     PENDING = "pending"  # waiting for the Data Quality check
     AWAITING_INFO = "awaiting_info"  # information missing; chase email drafted
     DQ_PASSED = "dq_passed"  # good enough, ready for Triage
+    TRIAGED = "triaged"  # priority recommended, ready for Resolution
     REJECTED = "rejected"  # not a real ticket, e.g. a test
     ERROR = "error"  # failed in a way that needs a person to look
 

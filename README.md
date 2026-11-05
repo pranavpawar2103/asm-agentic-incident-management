@@ -109,6 +109,8 @@ The expected outcome for every ticket: whether it should pass Data Quality, what
 | `POST /api/v1/tickets/{id}/comments` | Add a reply. A reply from the reporter sends an `awaiting_info` ticket back to `pending` |
 | `POST /api/v1/data-quality/run` | Check every pending ticket. Safe to re-run: unchanged tickets are skipped |
 | `POST /api/v1/data-quality/tickets/{id}/check` | Check one pending ticket: rules, then the model if the rules cannot decide |
+| `POST /api/v1/triage/run` | Recommend a priority for every `dq_passed` ticket. Safe to re-run: unchanged tickets are skipped |
+| `POST /api/v1/triage/tickets/{id}/check` | Triage one `dq_passed` ticket: rules, then the model if the rules cannot decide |
 | `/api/v1/admin/settings`, `/api/v1/admin/documents`, `/api/v1/admin/changes` | Change settings, rules, PII terms and prompts at runtime; change history. Needs `X-Admin-Key` |
 | `GET /api/v1/health` | Liveness check |
 
@@ -120,12 +122,17 @@ During ingestion every source is mapped to one common ticket format. For example
 | `pending` | Waiting for the Data Quality check |
 | `awaiting_info` | Information missing; chase email drafted |
 | `dq_passed` | Good enough, ready for Triage |
+| `triaged` | Priority recommended, ready for Resolution |
 | `rejected` | Not a real ticket, e.g. a test |
 | `error` | Failed in a way that needs a person to look |
 
 The Data Quality rules stage (no model) stops only tickets it is certain about: test tickets become `rejected`; placeholder descriptions ("n/a", "tbd") and near-empty ones become `awaiting_info`. Everything else stays `pending` for the model step. Thresholds and terms live in `data/registry/` and are scored with `python evaluation/dq_rules_report.py`.
 
 The Data Quality model step asks Claude one question about each ticket the rules left undecided: is it complete enough to work on? The answer is `passed` (`dq_passed`) or `needs_info` with what is missing and a draft chase email (`awaiting_info`); the email is never sent automatically. Every agent calls the model through one function, `call_model()` in `backend/app/llm/client.py`. Model calls are off until `LLM_ENABLED=true`. The prompt lives in `data/registry/prompts.yaml`. Settings, rules, PII terms and prompts can be changed at runtime through the admin API, with no restart; see [backend/README.md](backend/README.md#configuration-and-admin).
+
+The Triage agent recommends a priority from the rulebook in `data/registry/triage_rules.yaml` and the batch-job list in `jobs.yaml`, both built from the knowledge base. Each application has its own rules (symptoms, error codes, job names) with the priority its KB page gives, when to raise it (wider impact, a calendar window such as the payroll window or month-end close, business context such as a customer meeting) and the facts it `needs`. Generic rules (outage, slow, cosmetic, request) cover the rest by impact × urgency and the application's tier; then the application's ceiling; then the must-follow rules, which no ceiling can cap: security, a critical job failing in its window, checkout down, SSO down for many, salary late in the payroll window (all P1), and a cosmetic portal issue (P5). The reporter's own urgency words are ignored.
+
+The rules settle a ticket only when every fact its rule needs is known and changes the answer; otherwise the model is asked once, with the facts the code found. It reports the rule, how many are affected and the business context, each with an exact quote from the ticket; a fact whose quote is not in the ticket goes back to unknown. The code then calculates the priority, so it always follows the rulebook. Without a usable model answer (switched off, or down) the rules' own answer is used, and an unknown fact leans high only when it could make the ticket P1/P2. The reporter's priority is never changed: the recommendation is stored in `agent_runs`, and a lowered P1/P2, a lean-high guess or a difference of more than two levels is flagged for review. A change to the rulebook re-triages every ticket. Scored with `python evaluation/triage_report.py`, on a tuning set and on held-out ServiceNow tickets.
 
 Personal information is masked with Microsoft Presidio before any text reaches a model: names, emails, phones, employee IDs, PAN, Aadhaar, bank accounts and cards become numbered placeholders such as `<PERSON_1>`, and the real values are put back into the model's answer locally. Application names, error codes, record IDs, sites and dates stay readable. The database keeps the original data. `python backend/scripts/mask_servicenow_tickets.py` writes `data/tickets/servicenow_tickets_masked.xlsx`, with the same person getting the same placeholder across the file. `python evaluation/pii_leak_report.py` checks that no known name or email survives.
 
@@ -167,8 +174,8 @@ Set `DATABASE_URL` in `backend/.env` (Supabase, `postgresql+asyncpg://...`); nev
 | Data Quality: model check, "missing information" email draft | Built, tested offline; first live call next |
 | Model client (`call_model`), provider switch, kill switch | Done |
 | Admin API: runtime settings, rules, PII terms, prompts, change history | Done (shared key; real logins planned) |
-| Priority rulebook + Triage agent | Planned |
+| Priority rulebook + Triage agent: rules per application, model step | Built, tested offline; first live call next |
 | Resolution agent over the knowledge base | Planned |
 | Chat UI (`frontend/`) | Planned |
-| Scoring reports: Data Quality rules, PII leaks | Done |
-| Scoring for the model step, Triage and Resolution | Planned |
+| Scoring reports: Data Quality rules, PII leaks, Triage rules | Done |
+| Scoring for the model steps and Resolution | Planned |

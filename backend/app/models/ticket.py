@@ -19,7 +19,8 @@ class PipelineStatus(StrEnum):
     PENDING = "pending"  # waiting for the Data Quality check
     AWAITING_INFO = "awaiting_info"  # information missing; chase email drafted
     DQ_PASSED = "dq_passed"  # good enough, ready for Triage
-    TRIAGED = "triaged"  # priority recommended, ready for Resolution
+    TRIAGED = "triaged"  # priority recommended, waiting for an engineer to review it
+    REVIEWED = "reviewed"  # an engineer decided the priority; ready for Resolution
     REJECTED = "rejected"  # not a real ticket, e.g. a test
     ERROR = "error"  # failed in a way that needs a person to look
 
@@ -102,3 +103,22 @@ class Comment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     ticket: Mapped[Ticket] = relationship(back_populates="comments")
+
+
+class Review(Base):
+    """A person's decision on an agent's recommendation. The recommendation in agent_runs is never changed."""
+
+    __tablename__ = "agent_reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ticket_id: Mapped[str] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), index=True)
+    agent_run_id: Mapped[int] = mapped_column(ForeignKey("agent_runs.id", ondelete="CASCADE"), index=True)
+    agent: Mapped[str] = mapped_column(String(32), index=True)  # triage
+    action: Mapped[str] = mapped_column(String(16))  # accepted, edited, rejected
+    final_priority: Mapped[Optional[int]] = mapped_column(Integer)  # what the engineer decided; None if no priority applies
+    reason_code: Mapped[Optional[str]] = mapped_column(String(32))  # why the recommendation was changed
+    note: Mapped[Optional[str]] = mapped_column(Text)
+    reviewer: Mapped[str] = mapped_column(String(256))  # as given by the caller; not verified until there are logins
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    agent_run: Mapped[AgentRun] = relationship()

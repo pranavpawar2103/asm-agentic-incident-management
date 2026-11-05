@@ -50,6 +50,7 @@ def _recommendation(ticket: Ticket, decision: Decision | None, reason: str, ai: 
         "shift": shift,
         "downgrade": downgrade,
         "leaned_high": leaned,
+        "kept_reported": kept,
         "needs_review": downgrade or leaned or kept or (shift is not None and abs(shift) > get_config().review_shift),
         "rule": decision.rule if decision else None,
         "must_follow": decision.must_follow if decision else None,

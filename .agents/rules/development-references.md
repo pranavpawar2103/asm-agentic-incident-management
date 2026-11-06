@@ -1,16 +1,21 @@
 # Agent Development References & Guidelines
 
-When working on tasks in this repository, you MUST consult the relevant development guide(s) before proposing or implementing changes:
+When working on tasks in this repository, you MUST consult the relevant development guide(s) before proposing or implementing changes. Do NOT inspect every source file across the repository.
 
-1. **Backend Development**:
+1. **System & Architectural Overview**:
+   - Primary guide: `AGENTS.md` (or `GEMINI.md` / `CLAUDE.md`)
+   - Read this first for project context, ticket pipeline flow, and directory layout.
+
+2. **Backend Development**:
    - Primary guide: `backend/DEVELOPMENT.md`
    - Covers FastAPI conventions, strict async paradigm with `asyncpg`, SQLAlchemy 2.0 on-demand sessions, Supabase integration, and error handling.
+   - For ServiceNow ticket ingestion: see `POST /api/v1/servicenow/ingest` in `backend/app/api/v1/endpoints/servicenow.py`.
 
-2. **Database Scripts & Schema Migrations**:
+3. **Database Scripts & Schema Migrations**:
    - Primary guide: `backend/db/scripts/DEVELOPMENT.md`
    - Covers SQL migration ordering and idempotency.
-   - For Data Quality (DQ) feature work, the `dq-rules-workflow` skill will activate on-demand.
+   - For Data Quality (DQ) feature work, consult `backend/db/scripts/DQ_RULES_FEATURE.md` or use the `dq-rules-workflow` skill.
 
-3. **Frontend Development**:
-   - Primary guide: `frontend/DEVELOPMENT.md`
-   - Covers Next.js App Router patterns, shadcn/ui components (`src/components/ui/`), API client integration, and build verification (`npm run build`).
+4. **Frontend Development**:
+   - Primary guides: `frontend/DEVELOPMENT.md` and `frontend/frontend-guidelines.md`
+   - Covers Next.js App Router patterns, mandatory shadcn/ui components (`src/components/ui/`), API client integration, and build verification (`npm run build`).

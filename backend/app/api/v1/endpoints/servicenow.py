@@ -1,15 +1,79 @@
 """ServiceNow tickets API endpoints."""
 
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+import logging
+from typing import Annotated, Optional
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.models.servicenow import ServiceNowTicket
-from app.schemas.servicenow import ServiceNowTicketDetail, ServiceNowTicketList
+from app.schemas.servicenow import (
+    ServiceNowIngestResponse,
+    ServiceNowTicketDetail,
+    ServiceNowTicketList,
+)
+from app.services.ingestion import ingest_servicenow_file
+
+logger = logging.getLogger("app.api.servicenow")
 
 router = APIRouter(prefix="/servicenow", tags=["servicenow"])
+
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
+
+
+@router.post(
+    "/ingest",
+    response_model=ServiceNowIngestResponse,
+    summary="Ingest ServiceNow tickets from Excel",
+)
+async def ingest_servicenow(
+    file: Annotated[
+        UploadFile,
+        File(description="ServiceNow tickets Excel workbook (.xlsx)"),
+    ],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ServiceNowIngestResponse:
+    """Upload and ingest ServiceNow tickets from an Excel workbook (.xlsx)."""
+    if not file.filename or not file.filename.lower().endswith(".xlsx"):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file format. Please upload an Excel file (.xlsx).",
+        )
+
+    content = await file.read(MAX_UPLOAD_SIZE + 1)
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail="File size exceeds maximum limit of 10MB.",
+        )
+
+    try:
+        result = await ingest_servicenow_file(
+            db=db, file_bytes=content, filename=file.filename
+        )
+        return ServiceNowIngestResponse(
+            message=(
+                f"Successfully ingested {result.total_processed} ServiceNow tickets "
+                f"({result.created} created, {result.updated} updated, {result.skipped} skipped)."
+            ),
+            total_processed=result.total_processed,
+            created=result.created,
+            updated=result.updated,
+            skipped=result.skipped,
+            filename=result.filename,
+        )
+    except ValueError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        await db.rollback()
+        logger.exception("Failed to ingest ServiceNow Excel file")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to ingest file due to an internal server error.",
+        ) from exc
 
 
 @router.get("/tickets", response_model=ServiceNowTicketList, summary="List ServiceNow tickets")

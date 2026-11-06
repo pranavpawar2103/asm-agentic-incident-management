@@ -7,7 +7,7 @@ Context: [backend/db/scripts/DQ_RULES_FEATURE.md](backend/db/scripts/DQ_RULES_FE
 | 1 | Review DB scripts and the DQ rules feature notes | DONE | none | Complete |
 | 2 | Create dummy data for the ServiceNow schema, covering the DQ rules | TBD | 1 | Open |
 | 3 | Create API endpoints | DONE | 1 | Complete |
-| 4 | Add Presidio masking before DB ingestion (`caller`, descriptions, notes) | TBD | 7 | Planned (Later) |
+| 4 | Add Presidio masking before DB ingestion (`caller`, descriptions, notes) | DONE | 7 | Complete |
 | 5 | Update the UI for DQ rule configuration | DONE | 3 | Complete |
 | 6 | Add schemas for different ticket sources as well | TBD | none | Open |
 | 7 | Synchronize ServiceNow ticket ingestion with DB schema & Excel upload API | DONE | 1, 3 | Complete |
@@ -34,11 +34,12 @@ Context: [backend/db/scripts/DQ_RULES_FEATURE.md](backend/db/scripts/DQ_RULES_FE
 
 ## 4. Presidio masking before DB ingestion
 - Mask `caller`, `short_description`, `description`, and `resolution_notes` before records are stored in PostgreSQL (`servicenow_tickets` and other sources).
-- Integration options: inline via `Masker` or asynchronous via Celery worker + RabbitMQ broker depending on throughput needs.
-- Follow the redaction plan in [architectures/data-quality.html](../architectures/data-quality.html) (Presidio with spaCy, keep-list for order/invoice/SKU identifiers, allow-list for application names).
-- Open questions: whether to store reversible token mappings or irreversible anonymized placeholders.
-- Done when: no caller name, personal phone, or email survives in stored ticket records, verified on sample ticket sets.
-- *Status: Deferred for implementation at a later stage.*
+- Implemented inline execution via Microsoft Presidio + spaCy NER (`Masker`), with batch-level known caller mapping and entity leak verification.
+- Adheres to approved Option A: Irreversible anonymized placeholders (`<PERSON_n>`, `<EMAIL_n>`, `<PHONE_n>`, `<EMPLOYEE_ID_n>`) at rest in PostgreSQL, with upstream `ticket_id` link.
+- System accounts (`Service Desk`, `Integration User`) and enterprise application/error entities are strictly preserved.
+- Added toggle `PII_MASKING_ENABLED` in `app/core/config.py`.
+- Verified with 5 dedicated tests in `backend/tests/test_ingestion_masking.py` and 15 tests in `backend/tests/test_servicenow_api.py`.
+- Done when: no caller name, personal phone, or email survives in stored ticket records, verified on sample ticket sets. (Complete)
 
 ## 5. UI for rule configuration
 - Rule list with enable toggle, create, edit and delete.

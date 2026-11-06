@@ -21,7 +21,8 @@ Tickets enter the system from various sources (ServiceNow, JIRA, and Support Mai
 ```mermaid
 flowchart LR
     A[Ticket Sources:<br/>ServiceNow / JIRA / Mailbox] --> Ingest[Ingestion Service]
-    Ingest --> DB[(PostgreSQL / Supabase)]
+    Ingest --> PII[Presidio PII Redaction]
+    PII --> DB[(PostgreSQL / Supabase)]
     DB --> DQ[1. Data Quality Agent]
     DQ --> Triage[2. Triage Agent]
     Triage --> Resolution[3. Resolution Agent]
@@ -67,8 +68,7 @@ flowchart LR
 │   └── skills/                    # dq-rules-workflow, etc.
 ├── CLAUDE.md                      # Claude instructions & fast reference
 ├── GEMINI.md                      # Gemini & Antigravity instructions
-├── TODO.md                        # Master task list & feature status
-└── SERVICENOW_INGESTION_UPDATE.md # Documentation of recent ServiceNow ingestion sync
+└── TODO.md                        # Master task list & feature status
 ```
 
 ---
@@ -98,7 +98,12 @@ flowchart LR
    - Make minimum required modifications.
    - Do not refactor adjacent working code.
    - Follow existing style and preserve docstrings.
-4. **Verification Requirement**:
+4. **Pre-DB PII Redaction (Privacy at Rest)**:
+   - Microsoft Presidio + spaCy NER (`Masker`) redacts tickets *before* insertion into PostgreSQL (`servicenow_tickets`).
+   - Fields masked: `caller`, `short_description`, `description`, `resolution_notes`.
+   - Placeholders: `<PERSON_n>`, `<EMAIL_n>`, `<PHONE_n>`, `<EMPLOYEE_ID_n>`. System accounts (`Service Desk`, `Integration User`) and application names are preserved.
+   - Configured via `PII_MASKING_ENABLED`.
+5. **Verification Requirement**:
    - Backend: `./.venv/bin/pytest backend/tests/` and `./.venv/bin/ruff check backend/`
    - Frontend: `npm run build` inside `frontend/`
 
@@ -113,6 +118,6 @@ Before working on any subsystem, read the dedicated guide:
 | **FastAPI Backend** | [`backend/DEVELOPMENT.md`](backend/DEVELOPMENT.md) | Asyncpg standards, scoped sessions, lifespan, API conventions |
 | **SQL & Database** | [`backend/db/scripts/DEVELOPMENT.md`](backend/db/scripts/DEVELOPMENT.md) | Numbered idempotent scripts, Supabase conventions |
 | **Data Quality Rules** | [`backend/db/scripts/DQ_RULES_FEATURE.md`](backend/db/scripts/DQ_RULES_FEATURE.md) | DQ rule operators, run history, revert semantics |
+| **Privacy & Masking** | [`backend/DEVELOPMENT.md`](backend/DEVELOPMENT.md) & [`backend/app/privacy/masking.py`](backend/app/privacy/masking.py) | In-process Presidio redaction pre-DB & in-flight LLM masking |
 | **Frontend UI** | [`frontend/DEVELOPMENT.md`](frontend/DEVELOPMENT.md) | Next.js App Router, shadcn/ui rules, API integration |
-| **ServiceNow Ingestion** | [`SERVICENOW_INGESTION_UPDATE.md`](SERVICENOW_INGESTION_UPDATE.md) | `POST /api/v1/servicenow/ingest`, Excel validation, partial updates |
 | **Current Tasks** | [`TODO.md`](TODO.md) | Pending and completed roadmap items |

@@ -27,3 +27,7 @@ description: Behavioral guidelines to reduce common LLM coding mistakes.
 ## 4. Goal-Driven Execution
 - Define success criteria before running edits.
 - For multi-step tasks, state a brief plan with verification steps.
+
+## 5. Security & Sensitive Files
+- Never read, inspect, display, or log `.env` files, production credentials, secrets, or private keys. Always consult `.env.example` or schemas/documentation instead.
+

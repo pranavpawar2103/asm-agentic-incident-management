@@ -39,65 +39,71 @@ export function RunPipelineCard({ onRun }: RunPipelineCardProps) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Play className="h-4 w-4 text-primary" /> Execute Data Quality Evaluation
-        </CardTitle>
-        <CardDescription>
-          Run enabled rules against tickets according to scope and source.
+    <Card className="border-[#e0e1dc] bg-white shadow-xs">
+      <CardHeader className="pb-4">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base font-bold text-[#222222] flex items-center gap-2">
+            <Play className="h-4 w-4 text-[#a20a29]" /> Execute Rule Evaluation
+          </CardTitle>
+          <span className="text-xs font-medium text-[#005656] bg-[#f0f4f4] px-2 py-0.5 rounded">Deterministic Batch Engine</span>
+        </div>
+        <CardDescription className="text-xs text-[#5e605d]">
+          Run enabled validation rules against incident records according to target scope and source.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 pt-0">
         {statusMsg && (
           <div
-            className={`p-3 text-sm rounded border ${
+            className={`p-3 text-xs rounded-md border font-medium ${
               statusMsg.type === "success"
-                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
-                : "bg-destructive/15 text-destructive border-destructive/30"
+                ? "bg-[#eef8f8] text-[#005656] border-[#bfe5e5]"
+                : "bg-[#fdf2f4] text-[#a20a29] border-[#f5c2cb]"
             }`}
           >
             {statusMsg.text}
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row gap-4 items-end">
-          <div className="flex-1 w-full space-y-1">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Scope
+        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+          <div className="sm:col-span-5 space-y-1.5">
+            <label className="text-xs font-semibold text-[#222222]">
+              Evaluation Scope
             </label>
             <select
               value={scope}
               onChange={(e) => setScope(e.target.value as ApplyToScope)}
-              className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="w-full h-9 rounded-md border border-[#e0e1dc] bg-white px-3 py-1.5 text-xs text-[#222222] shadow-2xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#a20a29]"
             >
               <option value="existing">Existing Tickets Only</option>
-              <option value="both">Both (Existing & New)</option>
+              <option value="both">Both (Existing & Ingestion Stream)</option>
               <option value="new">New Unprocessed Only</option>
             </select>
           </div>
 
-          <div className="flex-1 w-full space-y-1">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          <div className="sm:col-span-4 space-y-1.5">
+            <label className="text-xs font-semibold text-[#222222]">
               Target Source
             </label>
             <select
               value={source}
               onChange={(e) => setSource(e.target.value)}
-              className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="w-full h-9 rounded-md border border-[#e0e1dc] bg-white px-3 py-1.5 text-xs text-[#222222] shadow-2xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#a20a29]"
             >
               <option value="servicenow">ServiceNow (servicenow_tickets)</option>
               <option value="">All Sources</option>
             </select>
           </div>
 
-          <Button
-            onClick={handleExecute}
-            disabled={isRunning}
-            className="w-full sm:w-auto"
-          >
-            {isRunning ? "Evaluating..." : "Apply DQ Rules"}
-          </Button>
+          <div className="sm:col-span-3">
+            <Button
+              onClick={handleExecute}
+              disabled={isRunning}
+              className="w-full h-9 text-xs font-semibold gap-2 bg-[#a20a29] hover:bg-[#850821] text-white shadow-xs"
+            >
+              <Play className="h-3 w-3 fill-current" />
+              {isRunning ? "Evaluating..." : "Apply Rules"}
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

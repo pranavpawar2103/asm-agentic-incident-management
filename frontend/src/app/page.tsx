@@ -19,7 +19,9 @@ export default function Home() {
   const agentStages = [
     {
       title: "Data Quality Agent",
-      stage: "Stage 1",
+      stage: "Step 01",
+      href: "/dq-rules",
+      btnText: "Enter Step 1: Data Quality",
       description: "Validates incident tickets against deterministic quality rules. Identifies incomplete logs, missing reproduction steps, or invalid fields before escalation.",
       capabilities: [
         "Pre-database Presidio PII masking",
@@ -29,10 +31,13 @@ export default function Home() {
       icon: CheckCircle2,
       tag: "10 active operators",
       accent: "border-l-4 border-l-[#a20a29]",
+      btnStyle: "bg-[#a20a29] hover:bg-[#850821] text-white",
     },
     {
       title: "Triage & Priority Agent",
-      stage: "Stage 2",
+      stage: "Step 02",
+      href: "/triage",
+      btnText: "Enter Step 2: Triage & Priority",
       description: "Re-evaluates business priority and SLA tiers against standard operating procedures, normalizing misclassified ticket urgencies.",
       capabilities: [
         "Runbook taxonomy alignment",
@@ -42,10 +47,13 @@ export default function Home() {
       icon: ShieldAlert,
       tag: "Runbook triage",
       accent: "border-l-4 border-l-[#005656]",
+      btnStyle: "bg-[#005656] hover:bg-[#004242] text-white",
     },
     {
       title: "Resolution Agent",
-      stage: "Stage 3",
+      stage: "Step 03",
+      href: "/resolution",
+      btnText: "Enter Step 3: Resolution & KB",
       description: "Matches incidents with technical runbooks and knowledge articles to propose verified remediation steps and resolution drafts for engineers.",
       capabilities: [
         "Runbook search across knowledge bases",
@@ -55,6 +63,7 @@ export default function Home() {
       icon: BookOpen,
       tag: "Knowledge base",
       accent: "border-l-4 border-l-[#b08824]",
+      btnStyle: "bg-[#b08824] hover:bg-[#94721d] text-white",
     },
   ];
 
@@ -101,7 +110,7 @@ export default function Home() {
               <Link href="/dq-rules">
                 <Button className="h-10 px-5 text-xs font-semibold gap-2 bg-[#a20a29] hover:bg-[#850821] text-white shadow-xs">
                   <ShieldCheck className="h-4 w-4" />
-                  Configure Data Quality Rules
+                  Launch Agent Pipeline (Step 1: Data Quality)
                   <ArrowRight className="h-3.5 w-3.5" />
                 </Button>
               </Link>
@@ -155,7 +164,7 @@ export default function Home() {
                     </CardDescription>
                   </CardHeader>
 
-                  <CardContent className="pt-0 pb-5">
+                  <CardContent className="pt-0 pb-5 space-y-4">
                     <div className="border-t border-[#e0e1dc] pt-3 space-y-1.5">
                       {stage.capabilities.map((cap) => (
                         <div key={cap} className="flex items-start gap-2 text-xs text-[#5e605d]">
@@ -163,6 +172,15 @@ export default function Home() {
                           <span>{cap}</span>
                         </div>
                       ))}
+                    </div>
+
+                    <div className="pt-2">
+                      <Link href={stage.href} className="block">
+                        <Button className={`w-full text-xs h-9 font-semibold gap-1.5 shadow-2xs ${stage.btnStyle}`}>
+                          <span>{stage.btnText}</span>
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </Button>
+                      </Link>
                     </div>
                   </CardContent>
                 </Card>

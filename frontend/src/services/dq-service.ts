@@ -16,7 +16,10 @@ export const dqService = {
     if (params?.service) q.append("service", params.service);
     if (params?.is_enabled !== undefined) q.append("is_enabled", String(params.is_enabled));
     const qs = q.toString();
-    return apiClient<DQRule[]>(`/dq/rules${qs ? `?${qs}` : ""}`);
+    const res = await apiClient<{ total: number; items: DQRule[] } | DQRule[]>(
+      `/dq/rules${qs ? `?${qs}` : ""}`
+    );
+    return Array.isArray(res) ? res : res.items || [];
   },
 
   async createRule(payload: DQRuleCreateInput): Promise<DQRule> {
@@ -46,7 +49,10 @@ export const dqService = {
   },
 
   async getRuns(limit = 20, offset = 0): Promise<DQRun[]> {
-    return apiClient<DQRun[]>(`/dq/runs?limit=${limit}&offset=${offset}`);
+    const res = await apiClient<{ total: number; items: DQRun[] } | DQRun[]>(
+      `/dq/runs?limit=${limit}&offset=${offset}`
+    );
+    return Array.isArray(res) ? res : res.items || [];
   },
 
   async createRun(payload: DQRunCreateInput): Promise<DQRun> {

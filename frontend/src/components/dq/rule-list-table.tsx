@@ -49,11 +49,11 @@ export function RuleListTable({
       <Table>
         <TableHeader className="bg-[#f0f4f4]">
           <TableRow className="border-[#e0e1dc] hover:bg-transparent">
-            <TableHead className="w-16 text-center text-xs font-semibold text-[#005656]">Priority</TableHead>
+            <TableHead className="w-16 text-center text-xs font-semibold text-[#005656]">ID</TableHead>
             <TableHead className="text-xs font-semibold text-[#005656]">Rule Name</TableHead>
             <TableHead className="text-xs font-semibold text-[#005656]">Condition</TableHead>
             <TableHead className="text-xs font-semibold text-[#005656]">Scope</TableHead>
-            <TableHead className="text-xs font-semibold text-[#005656]">Source</TableHead>
+            <TableHead className="text-xs font-semibold text-[#005656]">Source / Service</TableHead>
             <TableHead className="text-xs font-semibold text-[#005656]">Status</TableHead>
             <TableHead className="text-right text-xs font-semibold text-[#005656]">Actions</TableHead>
           </TableRow>
@@ -62,12 +62,12 @@ export function RuleListTable({
           {rules.map((rule) => (
             <TableRow key={rule.id} className="border-[#e0e1dc] hover:bg-[#fafaf8] transition-colors">
               <TableCell className="text-xs text-center font-mono font-semibold text-[#5e605d]">
-                #{rule.priority ?? 100}
+                #{rule.id}
               </TableCell>
               <TableCell className="text-xs">
                 <div className="font-semibold text-[#222222]">{rule.name}</div>
                 <div className="text-xs text-[#5e605d] font-mono mt-0.5">
-                  field: <span className="text-[#a20a29] font-medium">{rule.field_name}</span>
+                  field: <span className="text-[#a20a29] font-medium">{rule.field}</span>
                 </div>
               </TableCell>
               <TableCell className="text-xs">

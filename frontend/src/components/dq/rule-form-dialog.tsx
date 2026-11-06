@@ -35,12 +35,11 @@ const OPERATORS: { label: string; value: DQOperator; needsValue: boolean }[] = [
 const FIELDS = [
   "short_description",
   "description",
-  "caller_id",
+  "caller",
   "service",
   "priority",
-  "state",
-  "category",
   "assignment_group",
+  "resolution_notes",
 ];
 
 export function RuleFormDialog({
@@ -50,13 +49,12 @@ export function RuleFormDialog({
   onSubmit,
 }: RuleFormDialogProps) {
   const [name, setName] = useState(ruleToEdit?.name || "");
-  const [fieldName, setFieldName] = useState(ruleToEdit?.field_name || "short_description");
+  const [field, setField] = useState(ruleToEdit?.field || "short_description");
   const [operator, setOperator] = useState<DQOperator>(ruleToEdit?.operator || "is_empty");
   const [value, setValue] = useState(ruleToEdit?.value || "");
   const [applyTo, setApplyTo] = useState<ApplyToScope>(ruleToEdit?.apply_to || "both");
   const [source, setSource] = useState(ruleToEdit?.source || "");
   const [service, setService] = useState(ruleToEdit?.service || "");
-  const [priority, setPriority] = useState<number>(ruleToEdit?.priority || 100);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -81,13 +79,12 @@ export function RuleFormDialog({
     try {
       await onSubmit({
         name: name.trim(),
-        field_name: fieldName,
+        field,
         operator,
         value: needsValue ? value.trim() : null,
         apply_to: applyTo,
         source: source.trim() ? source.trim() : null,
         service: service.trim() ? service.trim() : null,
-        priority: Number(priority) || 100,
       });
       onOpenChange(false);
     } catch (err: unknown) {
@@ -124,10 +121,10 @@ export function RuleFormDialog({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block font-medium mb-1">Field Name *</label>
+                <label className="block font-medium mb-1">Target Field *</label>
                 <select
-                  value={fieldName}
-                  onChange={(e) => setFieldName(e.target.value)}
+                  value={field}
+                  onChange={(e) => setField(e.target.value)}
                   className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
                   {FIELDS.map((f) => (
@@ -167,28 +164,17 @@ export function RuleFormDialog({
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block font-medium mb-1">Apply To Scope</label>
-                <select
-                  value={applyTo}
-                  onChange={(e) => setApplyTo(e.target.value as ApplyToScope)}
-                  className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  <option value="both">Both (Existing & New)</option>
-                  <option value="existing">Existing Only</option>
-                  <option value="new">New Only</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-medium mb-1">Priority (Low = 1st)</label>
-                <Input
-                  type="number"
-                  value={priority}
-                  onChange={(e) => setPriority(parseInt(e.target.value, 10) || 100)}
-                />
-              </div>
+            <div>
+              <label className="block font-medium mb-1">Apply To Scope</label>
+              <select
+                value={applyTo}
+                onChange={(e) => setApplyTo(e.target.value as ApplyToScope)}
+                className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="both">Both (Existing Unresolved & Incoming)</option>
+                <option value="existing">Existing Tickets Only</option>
+                <option value="new">Incoming Tickets Only</option>
+              </select>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -199,14 +185,20 @@ export function RuleFormDialog({
                   value={source}
                   onChange={(e) => setSource(e.target.value)}
                 />
+                <span className="text-[11px] text-muted-foreground block mt-1">
+                  Ticket source system (e.g. servicenow, jira). Empty = all.
+                </span>
               </div>
               <div>
                 <label className="block font-medium mb-1">Service (Optional)</label>
                 <Input
-                  placeholder="e.g. SAP ERP"
+                  placeholder="e.g. PayrollPro"
                   value={service}
                   onChange={(e) => setService(e.target.value)}
                 />
+                <span className="text-[11px] text-muted-foreground block mt-1">
+                  Application service (e.g. PayrollPro). Empty = all.
+                </span>
               </div>
             </div>
           </div>

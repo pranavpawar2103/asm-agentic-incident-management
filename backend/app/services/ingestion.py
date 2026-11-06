@@ -6,11 +6,12 @@ Ticket fields. Only the source sheets are read; any other sheet is ignored.
 
 import logging
 from collections import Counter
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Callable, Iterator
+from typing import Any
 from zipfile import BadZipFile
 
 from openpyxl import load_workbook
@@ -19,8 +20,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.servicenow import ServiceNowTicket
 from app.models.ticket import PipelineStatus, Ticket
+from app.privacy.masking import Masker
 
 logger = logging.getLogger("app.ingestion")
 
@@ -195,18 +198,23 @@ def _rows(workbook, sheet: str) -> Iterator[dict[str, Any]]:
     header = next(rows)
     for values in rows:
         if any(v is not None for v in values):
-            yield dict(zip(header, values))
+            yield dict(zip(header, values, strict=False))
 
 
 def _raw(row: dict[str, Any]) -> dict[str, Any]:
     return {k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in row.items()}
 
 
-def ingest_workbook(db: Session, path: Path) -> IngestResult:
+def ingest_workbook(
+    db: Session,
+    path: Path,
+    mask_pii: bool = False,
+) -> IngestResult:
     """Upsert every ticket from the source sheets. Agent results already stored are kept."""
     if not path.exists():
         raise FileNotFoundError(f"Tickets file not found: {path}")
 
+    should_mask = mask_pii
     workbook = load_workbook(path, read_only=True)
     result = IngestResult()
     try:
@@ -216,6 +224,19 @@ def ingest_workbook(db: Session, path: Path) -> IngestResult:
             for row in _rows(workbook, sheet):
                 fields = mapper(row)
                 fields["raw"] = _raw(row)
+                if should_mask:
+                    ticket_masker = Masker(
+                        known_names=[fields.get("reporter_name")],
+                        known_emails=[fields.get("reporter_email")],
+                    )
+                    for k in ("reporter_name", "reporter_email", "summary", "description", "resolution_notes"):
+                        if fields.get(k):
+                            fields[k] = str(ticket_masker.mask(fields[k]))
+                    if "raw" in fields and isinstance(fields["raw"], dict):
+                        for rk, rv in list(fields["raw"].items()):
+                            if isinstance(rv, str) and rv:
+                                fields["raw"][rk] = str(ticket_masker.mask(rv))
+
                 ticket = db.get(Ticket, fields["id"])
                 if ticket is None:
                     fields["pipeline_status"] = (
@@ -240,6 +261,7 @@ async def ingest_servicenow_file(
     db: AsyncSession,
     file_bytes: bytes,
     filename: str | None = None,
+    mask_pii: bool | None = None,
 ) -> ServiceNowIngestResult:
     """Ingest tickets from a ServiceNow Excel workbook (.xlsx) into servicenow_tickets table."""
     try:
@@ -309,6 +331,15 @@ async def ingest_servicenow_file(
         created_ids: set[str] = set()
         updated_ids: set[str] = set()
 
+        should_mask = settings.PII_MASKING_ENABLED if mask_pii is None else mask_pii
+        masker: Masker | None = None
+        if should_mask:
+            callers = [
+                c for r in valid_rows
+                if (c := _text(_first(r, "caller", "caller_id"))) is not None
+            ]
+            masker = Masker(known_names=callers)
+
         for row_dict in valid_rows:
             ticket_id = _text(_first(row_dict, "ticket_id", "number"))
             assert ticket_id is not None
@@ -321,6 +352,16 @@ async def ingest_servicenow_file(
             res_notes = _text(_first(row_dict, "resolution_notes", "close_notes"))
             opened_at = _datetime(row_dict.get("opened_at"))
             closed_at = _datetime(row_dict.get("closed_at"))
+
+            if masker is not None:
+                if caller is not None:
+                    caller = str(masker.mask(caller))
+                if short_desc is not None:
+                    short_desc = str(masker.mask(short_desc))
+                if desc is not None:
+                    desc = str(masker.mask(desc))
+                if res_notes is not None:
+                    res_notes = str(masker.mask(res_notes))
 
             if ticket_id in existing_tickets:
                 existing = existing_tickets[ticket_id]
@@ -383,6 +424,10 @@ async def ingest_servicenow_file(
                 created_ids.add(ticket_id)
 
         await db.commit()
+        if masker is not None and masker.counts:
+            logger.info(
+                f"Redacted PII during ServiceNow ingestion: {dict(masker.counts.most_common())}"
+            )
     finally:
         workbook.close()
 

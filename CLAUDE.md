@@ -15,7 +15,7 @@ This system implements an automated pipeline for Application Management Services
 - **Data Quality Agent**: Detects missing or malformed fields, sets `dq_flag` and `dq_reason`, and drafts clarification requests.
 - **Triage Agent**: Recalculates actual incident priority against business rules.
 - **Resolution Agent**: Searches application markdown runbooks (`data/knowledge_base/*.md`) and produces resolution steps.
-- **Privacy Layer**: Redacts PII via Presidio before LLM calls and restores placeholders afterwards.
+- **Privacy Layer**: Redacts PII via Presidio before database persistence (at rest) and before LLM model calls.
 
 ---
 
@@ -29,7 +29,7 @@ Always consult these documents before modifying or adding code:
 | **Backend / API** | [`backend/DEVELOPMENT.md`](backend/DEVELOPMENT.md) | Pure async FastAPI, SQLAlchemy 2.0 with `asyncpg`, scoped sessions |
 | **Database Migrations** | [`backend/db/scripts/DEVELOPMENT.md`](backend/db/scripts/DEVELOPMENT.md) | Sequential SQL numbering (`01_...`, `02_...`), idempotency |
 | **Data Quality Logic** | [`backend/db/scripts/DQ_RULES_FEATURE.md`](backend/db/scripts/DQ_RULES_FEATURE.md) | 10 operators, first-match-wins, revert tracking in `dq_run_tickets` |
-| **ServiceNow Ingestion** | [`SERVICENOW_INGESTION_UPDATE.md`](SERVICENOW_INGESTION_UPDATE.md) | `POST /api/v1/servicenow/ingest`, 10MB limit, `.xlsx` only, batch prefetch |
+| **Privacy & Masking** | [`backend/DEVELOPMENT.md`](backend/DEVELOPMENT.md) | Pre-DB Presidio redaction (`caller`, descriptions, notes) |
 | **Frontend Dashboard** | [`frontend/DEVELOPMENT.md`](frontend/DEVELOPMENT.md) | Next.js 16 App Router, strict shadcn/ui component usage |
 | **Frontend Style** | [`frontend/frontend-guidelines.md`](frontend/frontend-guidelines.md) | No raw Tailwind for pre-existing UI primitives, `@/` aliases |
 | **Roadmap & Tasks** | [`TODO.md`](TODO.md) | Task statuses, dependencies, and definitions of done |
@@ -66,6 +66,7 @@ Always consult these documents before modifying or adding code:
   - Accepts: `multipart/form-data` with `file: UploadFile` (.xlsx only, <= 10MB)
   - Table: `servicenow_tickets` (model: `backend/app/models/servicenow.py`)
   - Behavior: Upserts by `ticket_id`, deduplicates in-file duplicates, respects sheet header for partial column updates.
+  - Privacy: Batch Presidio PII redaction on `caller`, `short_description`, `description`, `resolution_notes` before database persistence. Controlled via `PII_MASKING_ENABLED`.
 - **Data Quality Endpoints**:
   - `POST /api/v1/data-quality/rules`: Manage custom DQ rules
   - `POST /api/v1/data-quality/apply`: Evaluate rules against existing or incoming tickets

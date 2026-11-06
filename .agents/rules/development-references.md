@@ -19,3 +19,7 @@ When working on tasks in this repository, you MUST consult the relevant developm
 4. **Frontend Development**:
    - Primary guides: `frontend/DEVELOPMENT.md` and `frontend/frontend-guidelines.md`
    - Covers Next.js App Router patterns, mandatory shadcn/ui components (`src/components/ui/`), API client integration, and build verification (`npm run build`).
+
+5. **Privacy & PII Masking**:
+   - Primary guides: `backend/DEVELOPMENT.md` and `backend/app/privacy/masking.py`
+   - Pre-DB masking using Microsoft Presidio and spaCy NER before persisting tickets to PostgreSQL (`caller`, `short_description`, `description`, `resolution_notes`). Controlled via `PII_MASKING_ENABLED`.

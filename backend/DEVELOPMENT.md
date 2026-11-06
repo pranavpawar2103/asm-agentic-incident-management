@@ -98,7 +98,27 @@ When building agent workers (e.g., triage, data quality, resolution):
 
 ---
 
-## 4. Configuration Reference
+## 4. Privacy & PII Masking Standards (Pre-DB Ingestion)
+
+All tickets entering the PostgreSQL database (`servicenow_tickets` table) undergo in-process PII redaction before storage:
+
+1. **Scope & Protected Fields**:
+   - Redacted fields: `caller`, `short_description`, `description`, and `resolution_notes`.
+   - Engine: Microsoft Presidio Analyzer with `spaCy` NER (`en_core_web_sm`) via `app.privacy.masking.Masker`.
+2. **Placeholders & Privacy at Rest**:
+   - Detected identities are replaced with irreversible standardized tokens: `<PERSON_n>`, `<EMAIL_n>`, `<PHONE_n>`, `<EMPLOYEE_ID_n>`, `<PAN_n>`, `<AADHAAR_n>`.
+   - Batch consistency: Within an upload file, multiple occurrences of the same caller (e.g., "Priya Raman") share the same identifier token (`<PERSON_1>`).
+3. **Exclusions & Protected Entities**:
+   - **System Accounts**: Configured in `data/registry/pii.yaml` (e.g., `Service Desk`, `Integration User`) are preserved untouched.
+   - **Application Names**: Applications in `data/registry/apps.yaml` (e.g., `PayrollPro`, `OrderHub`, `TimeTrack`) and error codes (e.g., `ORA-01555`) are protected from accidental masking.
+   - **Existing Placeholders**: Pre-existing `<PLACEHOLDER>` strings are excluded from registered known names to prevent false-positive leak errors in downstream checks.
+4. **Configuration & Override**:
+   - Default: `PII_MASKING_ENABLED = True` in `app.core.config.Settings`.
+   - Can be toggled dynamically by admins via `ADMIN_EDITABLE` or passed explicitly in ingestion services (`mask_pii=False`).
+
+---
+
+## 5. Configuration Reference
 
 Database settings are configured in [`app/core/config.py`](file:///Users/bhimk/Personal_Repos/AMS_Agent/asm-agentic-incident-management/backend/app/core/config.py) and populated via `.env`:
 
@@ -109,14 +129,16 @@ Database settings are configured in [`app/core/config.py`](file:///Users/bhimk/P
 | `DB_MAX_OVERFLOW` | Max extra overflow connections | `10` |
 | `DB_POOL_PRE_PING`| Validates connection health before checkout | `True` |
 | `DB_ECHO` | Print SQL statements to log (debug only) | `False` |
+| `PII_MASKING_ENABLED` | Redact personal information before DB persistence | `True` |
 
 ---
 
-## 5. Development Checklist for Agents
+## 6. Development Checklist for Agents
 
 When implementing new endpoints, services, or agent tasks:
 - [ ] Ensure new models subclass `Base` from `app.db.session`.
 - [ ] Avoid `run_sync` or synchronous database calls in async request paths.
 - [ ] Explicitly commit transactions (`await db.commit()`) or rollback on error (`await db.rollback()`).
 - [ ] Use `select()`, `update()`, and `delete()` SQLAlchemy 2.0 executable statements.
+- [ ] Ensure sensitive fields pass through `Masker` before storing in persistent tables.
 - [ ] Keep `.env.example` updated when introducing new environment variables.

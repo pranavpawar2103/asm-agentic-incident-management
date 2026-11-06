@@ -271,10 +271,10 @@ async def test_ingest_servicenow_updates_existing_ticket(sn_client, mock_db):
     assert data["updated"] == 1
     assert data["skipped"] == 0
 
-    # Verify updated fields
-    assert existing.caller == "Updated Caller"
-    assert existing.short_description == "Updated short desc"
-    assert existing.description == "Updated full desc"
+    # Verify updated fields (caller and caller name parts are masked via Presidio before DB write)
+    assert existing.caller == "<PERSON_1>"
+    assert existing.short_description == "<PERSON_1> short desc"
+    assert existing.description == "<PERSON_1> full desc"
     assert existing.priority == "2 - High"
     assert existing.assignment_group == "AMS-DevOps"
     assert existing.service == "OrderHub"
@@ -334,7 +334,8 @@ async def test_ingest_servicenow_duplicate_ids_in_file(sn_client, mock_db):
     # db.add should only be called once for INC0099999
     assert mock_db.add.call_count == 1
     added_ticket = mock_db.add.call_args[0][0]
-    assert added_ticket.caller == "Second Caller"
+    # Caller masked via Presidio before DB write
+    assert added_ticket.caller == "<PERSON_2>"
     assert added_ticket.priority == "1 - Critical"
 
 

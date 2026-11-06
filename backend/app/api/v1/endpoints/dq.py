@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.models.dq import DQRule, DQRun, DQRunTicket
+from app.models.dq import DQRule, DQRun, DQRunTicket, TicketSource as TicketSourceModel
 from app.models.servicenow import ServiceNowTicket
 from app.schemas.dq import (
     DQApplyTo,
@@ -20,6 +20,8 @@ from app.schemas.dq import (
     DQRunMatchesList,
     DQRunResponse,
     DQRunTicketMatchResponse,
+    TicketSource,
+    TicketSourceResponse,
 )
 from app.services.dq import execute_dq_run, revert_dq_run
 
@@ -46,6 +48,35 @@ def utcnow() -> datetime:
 # ---------------------------------------------------------
 # Rules Endpoints
 # ---------------------------------------------------------
+
+
+@router.get("/sources", response_model=list[TicketSourceResponse], summary="List available ticket sources")
+async def list_sources(
+    db: AsyncSession = Depends(get_db),
+) -> list[TicketSourceResponse]:
+    """Return available ticket source reference records from database (with enum fallback)."""
+    sources = await db.scalars(select(TicketSourceModel).where(TicketSourceModel.is_active.is_(True)))
+    source_list = list(sources.all())
+    if not source_list:
+        # Fallback to seeded standard enums if table not yet seeded in dev/test
+        return [
+            TicketSourceResponse(
+                code=s.value,
+                name="ServiceNow" if s.value == "servicenow" else s.name.capitalize(),
+                description=f"Inbound tickets from {s.value}",
+                is_active=True,
+            )
+            for s in TicketSource
+        ]
+    return [
+        TicketSourceResponse(
+            code=s.code,
+            name=s.name,
+            description=s.description,
+            is_active=s.is_active,
+        )
+        for s in source_list
+    ]
 
 
 @router.post("/rules", response_model=DQRuleResponse, status_code=status.HTTP_201_CREATED, summary="Create DQ rule")
@@ -90,7 +121,7 @@ async def create_rule(
 @router.get("/rules", response_model=DQRuleList, summary="List DQ rules")
 async def list_rules(
     is_enabled: Optional[bool] = Query(None, description="Filter by active enabled status"),
-    source: Optional[str] = Query(None, description="Filter by source"),
+    source: Optional[TicketSource] = Query(None, description="Filter by source"),
     service: Optional[str] = Query(None, description="Filter by service"),
     apply_to: Optional[DQApplyTo] = Query(None, description="Filter by apply_to"),
     include_deleted: bool = Query(False, description="Include soft-deleted rules"),

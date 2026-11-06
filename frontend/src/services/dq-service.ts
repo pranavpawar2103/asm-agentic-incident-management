@@ -55,6 +55,10 @@ export const dqService = {
     return Array.isArray(res) ? res : res.items || [];
   },
 
+  async getSources(): Promise<{ code: string; name: string; description?: string }[]> {
+    return apiClient<{ code: string; name: string; description?: string }[]>("/dq/sources");
+  },
+
   async createRun(payload: DQRunCreateInput): Promise<DQRun> {
     return apiClient<DQRun>("/dq/runs", {
       method: "POST",

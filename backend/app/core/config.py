@@ -66,6 +66,12 @@ class Settings(BaseSettings):
     # Triage run
     TRIAGE_OUTAGE_BREAKER: int = Field(5, ge=1)  # same, for the Triage model stage
 
+    # Jira Cloud (read-only pull into servicenow_tickets). Unset URL, email or token = Jira switched off.
+    ATLASSIAN_BASE_URL: str = ""
+    ATLASSIAN_EMAIL: str = ""
+    ATLASSIAN_API_TOKEN: SecretStr = SecretStr("")
+    JIRA_SYNC_MINUTES: int = Field(0, ge=0)  # 0 = no automatic sync, only "Sync now"
+
     # Admin API. Unset key = admin endpoints switched off. Set both in the environment only, never through the API.
     ADMIN_API_KEY: str = ""
     ALLOWED_AWS_REGIONS: list[str] = ["ca-central-1"]

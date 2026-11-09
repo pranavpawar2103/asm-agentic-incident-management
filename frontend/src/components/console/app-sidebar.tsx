@@ -9,6 +9,7 @@ import {
   Home,
   PanelLeftClose,
   PanelLeftOpen,
+  PlugZap,
   ShieldAlert,
   ShieldCheck,
   Ticket,
@@ -57,6 +58,10 @@ const ADMIN_GROUPS: { label: string; items: NavItem[] }[] = [
       { label: "Triage", href: "/triage", icon: ShieldAlert, step: 2, match: (p) => p.startsWith("/triage") },
       { label: "Resolution", href: "/resolution", icon: BookOpen, step: 3, match: (p) => p.startsWith("/resolution") },
     ],
+  },
+  {
+    label: "Settings",
+    items: [{ label: "Jira", href: "/settings/jira", icon: PlugZap, match: (p) => p.startsWith("/settings/jira") }],
   },
 ];
 

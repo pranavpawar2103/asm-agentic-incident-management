@@ -1,5 +1,6 @@
 """FastAPI Application factory and lifecycle."""
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -13,6 +14,7 @@ from app.core.exceptions import global_exception_handler
 from app.core.logging import setup_logging
 from app.core.middleware import RequestLoggingMiddleware
 from app.db.session import AsyncSessionLocal, close_db
+from app.services import jira
 
 logger = logging.getLogger("app.main")
 
@@ -24,9 +26,12 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.PROJECT_NAME} [{settings.ENVIRONMENT}]")
     async with AsyncSessionLocal() as db:
         await db.run_sync(apply_overrides)  # admin changes survive a restart
+    scheduler = asyncio.create_task(jira.schedule_loop(AsyncSessionLocal)) if settings.JIRA_SYNC_MINUTES else None
     try:
         yield
     finally:
+        if scheduler:
+            scheduler.cancel()
         logger.info(f"Shutting down {settings.PROJECT_NAME}")
         await close_db()
 

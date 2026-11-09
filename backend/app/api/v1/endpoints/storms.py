@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.ticket import Storm, Ticket
 from app.schemas.storm import StormDeclare, StormOut, StormRunResponse
-from app.services import storms as storm_service
+from app.services.triage import storms as storm_service
 
 router = APIRouter(prefix="/storms", tags=["storms"])
 

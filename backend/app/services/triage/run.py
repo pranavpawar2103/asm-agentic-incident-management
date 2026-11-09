@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.llm import CallAudit, ModelError
 from app.models.ticket import AgentRun, PipelineStatus, Storm, Ticket
 from app.services.data_quality import OutageBreaker, fingerprint, last_run, reporter_text
-from app.services.storms import detect_storms
+from app.services.triage.storms import detect_storms
 
 logger = logging.getLogger("app.triage")
 

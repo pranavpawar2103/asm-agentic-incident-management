@@ -11,10 +11,10 @@ from app.core import registry
 from app.core.config import bump_config_version, settings
 from app.db.session import Base
 from app.models.ticket import AgentRun, PipelineStatus, Ticket
-from app.services.sla import open_p1_p2, sla_status
-from app.services.storms import declare, detect_storms
-from app.services.triage import _input_hash, run_triage
-from app.services.triage_review import review
+from app.services.triage.review import review
+from app.services.triage.run import _input_hash, run_triage
+from app.services.triage.sla import open_p1_p2, sla_status
+from app.services.triage.storms import declare, detect_storms
 from tests.test_triage import db  # noqa: F401  (fixture: every open sample ticket as if Data Quality had passed it)
 
 T0 = datetime(2026, 10, 28, 9, 0)

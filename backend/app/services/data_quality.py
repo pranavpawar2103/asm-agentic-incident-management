@@ -85,7 +85,7 @@ def check_ticket(db: Session, ticket: Ticket) -> AgentRun:
 
     if outcome.verdict == Verdict.UNCERTAIN and settings.LLM_ENABLED:
         try:
-            answer, audit = check_completeness(ticket, body)
+            answer, audit = check_completeness(ticket, body, outcome.signals)
         except ModelError:
             final.input_hash = None
             raise

@@ -63,21 +63,22 @@ async def test_bad_values_and_guardrails_are_refused(client):
 async def test_prompt_change_applies_live_and_bad_prompt_is_refused(client):
     from app.agents.data_quality.model_check import DQCompleteness, dq_completeness_spec
 
+    baseline = dq_completeness_spec().prompt_version
     prompts = (await client.get("/api/v1/admin/documents/data_quality_prompts", headers=KEY)).json()["document"]
-    prompts["dq_completeness"]["version"] = "dq_completeness@2"
+    prompts["dq_completeness"]["version"] = "dq_completeness@override"
     prompts["dq_completeness"]["system"] = "Shorter instructions."
     response = await client.put("/api/v1/admin/documents/data_quality_prompts", headers=KEY, json={"document": prompts})
     assert response.status_code == 200 and response.json()["overridden"] is True
     spec = dq_completeness_spec()
-    assert spec.prompt_version == "dq_completeness@2" and spec.system == "Shorter instructions."
+    assert spec.prompt_version == "dq_completeness@override" and spec.system == "Shorter instructions."
     assert spec.output is DQCompleteness  # the answer schema is code, not configurable
 
     broken = {"dq_completeness": {"version": "x"}}  # missing every other field
     assert (await client.put("/api/v1/admin/documents/data_quality_prompts", headers=KEY, json={"document": broken})).status_code == 422
-    assert dq_completeness_spec().prompt_version == "dq_completeness@2"  # the refused change was not applied
+    assert dq_completeness_spec().prompt_version == "dq_completeness@override"  # the refused change was not applied
 
     await client.delete("/api/v1/admin/documents/data_quality_prompts", headers=KEY)
-    assert dq_completeness_spec().prompt_version == "dq_completeness@1"
+    assert dq_completeness_spec().prompt_version == baseline
 
 
 async def test_rule_change_applies_live(client):

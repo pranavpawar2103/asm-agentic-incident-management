@@ -140,7 +140,7 @@ async def test_check_endpoint_runs_rules_only_when_model_is_off(client):
 
 
 async def test_check_endpoint_uses_the_model(client, provider):
-    from app.agents.data_quality.model_check import DQCompleteness
+    from app.agents.data_quality.model_check import DQCompleteness, dq_completeness_spec
 
     await client.post("/api/v1/ingest")
     ticket_id = UNCERTAIN
@@ -154,7 +154,7 @@ async def test_check_endpoint_uses_the_model(client, provider):
     assert body["verdict"] == "needs_info" and body["pipeline_status"] == "awaiting_info"
     model_answer, audit = body["output"]["answer"], body["output"]["audit"]
     assert model_answer["missing"] == ["when"] and "<PERSON_1>" not in model_answer["chase_email"]
-    assert audit["prompt_version"] == "dq_completeness@1" and "model" not in model_answer
+    assert audit["prompt_version"] == dq_completeness_spec().prompt_version and "model" not in model_answer
     assert (await client.post(f"/api/v1/data-quality/tickets/{ticket_id}/check")).status_code == 409
 
 
@@ -165,3 +165,21 @@ async def test_model_outage_keeps_ticket_pending(client, provider):
     response = await client.post(f"/api/v1/data-quality/tickets/{ticket_id}/check")
     assert response.status_code == 503
     assert (await client.get(f"/api/v1/tickets/{ticket_id}")).json()["pipeline_status"] == "pending"
+
+
+def test_model_is_told_what_the_rules_found(provider):
+    from app.agents.data_quality.model_check import DQCompleteness, check_completeness
+    from app.agents.data_quality.rules import evaluate
+    from app.models.ticket import Ticket
+
+    ticket = Ticket(id="T-1", reporter_name="Meera Nair", reporter_email="meera.nair@contoso.com", application=None,
+                    summary="Payslip PDF is blank", description="My August payslip downloads as a blank PDF.")
+    rules = evaluate(ticket.summary, ticket.description, None, ticket.application)
+    fake = provider(_reply(DQCompleteness(complete=True, missing=[], reason="Clear symptom", chase_email=None)))
+
+    check_completeness(ticket, ticket.description, rules.signals)
+
+    content = fake.requests[0]["messages"][0]["content"]
+    assert "Application: PayrollPro (identified from the text)" in content  # not "not given"
+    assert "Specific code or ID in the text: no" in content
+    assert "Meera" not in content and "meera.nair" not in content  # still masked

@@ -1,4 +1,5 @@
 -- DESTRUCTIVE: removes all ticket and data quality data. Dev/test only.
+DROP TABLE IF EXISTS storms CASCADE;
 DROP TABLE IF EXISTS jira_syncs;
 DROP TABLE IF EXISTS jira_projects;
 DROP TABLE IF EXISTS config_changes;

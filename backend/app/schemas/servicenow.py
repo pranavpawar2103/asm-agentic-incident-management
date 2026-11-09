@@ -28,3 +28,12 @@ class ServiceNowTicketDetail(ServiceNowTicketBase):
 class ServiceNowTicketList(BaseModel):
     total: int
     items: list[ServiceNowTicketDetail]
+
+
+class ServiceNowIngestResponse(BaseModel):
+    message: str
+    total_processed: int
+    created: int
+    updated: int
+    skipped: int = 0
+    filename: str | None = None

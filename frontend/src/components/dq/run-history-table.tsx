@@ -79,45 +79,56 @@ export function RunHistoryTable({
 
   return (
     <>
-      <div className="rounded-md border">
+      <div className="rounded-lg border border-[#e0e1dc] overflow-hidden bg-white shadow-xs">
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-16">Run #</TableHead>
-              <TableHead>Execution Time</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Scope</TableHead>
-              <TableHead>Scanned / Flagged</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+          <TableHeader className="bg-[#f0f4f4]">
+            <TableRow className="border-[#e0e1dc] hover:bg-transparent">
+              <TableHead className="w-16 text-xs font-semibold text-[#005656]">ID</TableHead>
+              <TableHead className="text-xs font-semibold text-[#005656]">Execution Time</TableHead>
+              <TableHead className="text-xs font-semibold text-[#005656]">Type</TableHead>
+              <TableHead className="text-xs font-semibold text-[#005656]">Scope</TableHead>
+              <TableHead className="text-xs font-semibold text-[#005656]">Flagged / Scanned</TableHead>
+              <TableHead className="text-xs font-semibold text-[#005656]">Status</TableHead>
+              <TableHead className="text-right text-xs font-semibold text-[#005656]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {runs.map((run) => (
-              <TableRow key={run.id}>
-                <TableCell className="font-mono text-sm font-semibold">#{run.id}</TableCell>
-                <TableCell className="text-xs text-muted-foreground">
+              <TableRow key={run.id} className="border-[#e0e1dc] hover:bg-[#fafaf8] transition-colors">
+                <TableCell className="font-mono text-xs font-bold text-[#222222]">
+                  #{run.id}
+                </TableCell>
+                <TableCell className="text-xs text-[#5e605d]">
                   {new Date(run.created_at).toLocaleString()}
                 </TableCell>
-                <TableCell className="capitalize text-xs">{run.run_type}</TableCell>
+                <TableCell className="text-xs">
+                  <Badge variant="outline" className="capitalize text-xs font-medium text-[#5e605d] border-[#e0e1dc]">
+                    {run.run_type}
+                  </Badge>
+                </TableCell>
                 <TableCell>
-                  <Badge variant="outline" className="capitalize text-xs">
+                  <Badge variant="outline" className="capitalize text-xs font-medium text-[#5e605d] border-[#e0e1dc]">
                     {run.scope}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-xs">
-                  <span className="font-semibold">{run.tickets_flagged}</span> / {run.tickets_scanned}
+                  <div className="flex items-center gap-1.5 font-mono">
+                    <span className={`font-bold ${run.tickets_flagged ? "text-[#a20a29]" : "text-[#5e605d]"}`}>
+                      {run.tickets_flagged ?? 0}
+                    </span>
+                    <span className="text-[#93948e]">/</span>
+                    <span className="text-[#5e605d]">{run.tickets_scanned ?? 0}</span>
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Badge
-                    variant={
+                    className={`text-xs font-semibold px-2.5 py-0.5 border-none ${
                       run.status === "completed"
-                        ? "default"
+                        ? "bg-[#005656] text-white hover:bg-[#004444]"
                         : run.status === "reverted"
-                        ? "secondary"
-                        : "destructive"
-                    }
-                    className="capitalize text-xs"
+                        ? "bg-[#b08824] text-white hover:bg-[#97731a]"
+                        : "bg-[#a20a29] text-white"
+                    }`}
                   >
                     {run.status}
                   </Badge>
@@ -129,8 +140,9 @@ export function RunHistoryTable({
                     title="View Matches"
                     disabled={inspectingId === run.id}
                     onClick={() => handleOpenDetail(run.id)}
+                    className="h-8 w-8 p-0 text-[#5e605d] hover:text-[#005656] hover:bg-[#f0f4f4]"
                   >
-                    <Eye className="h-4 w-4" />
+                    <Eye className="h-3.5 w-3.5" />
                   </Button>
                   {run.status === "completed" && (
                     <Button
@@ -139,8 +151,9 @@ export function RunHistoryTable({
                       title="Revert Run"
                       disabled={revertingId === run.id}
                       onClick={() => handleRevert(run.id)}
+                      className="h-8 w-8 p-0 text-[#5e605d] hover:text-[#b08824] hover:bg-[#faf4e6]"
                     >
-                      <RotateCcw className="h-4 w-4 text-amber-600" />
+                      <RotateCcw className="h-3.5 w-3.5" />
                     </Button>
                   )}
                 </TableCell>

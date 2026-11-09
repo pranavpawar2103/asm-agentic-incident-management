@@ -1,38 +1,57 @@
 import Link from "next/link";
-import { Activity, ShieldCheck, FileText } from "lucide-react";
+import { ShieldCheck, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 export function Header() {
   return (
-    <header className="border-b bg-card">
-      <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2 font-semibold text-lg tracking-tight">
-            <Activity className="h-5 w-5 text-primary" />
-            <span>AMS Incident Agent</span>
+    <header className="sticky top-0 z-40 border-b border-[#e0e1dc] bg-white/95 backdrop-blur-md">
+      <div className="max-w-7xl mx-auto px-6 h-15 flex items-center justify-between">
+        <div className="flex items-center gap-8">
+          <Link href="/" className="flex items-center gap-3 font-semibold text-sm tracking-tight text-[#222222] hover:opacity-90 transition-opacity">
+            <span className="flex h-7 w-7 items-center justify-center rounded bg-[#a20a29] text-white font-sans text-xs font-bold shadow-xs">
+              CL
+            </span>
+            <div className="flex flex-col leading-tight">
+              <span className="text-sm font-semibold tracking-tight text-[#222222]">AMS Incident Intelligence</span>
+              <span className="text-[11px] text-[#5e605d]">Enterprise Agentic Console</span>
+            </div>
           </Link>
 
-          <nav className="flex items-center gap-4 text-sm font-medium">
+          <nav className="flex items-center gap-1.5 text-xs font-medium">
+            <Link
+              href="/"
+              className="px-3 py-1.5 rounded-md text-[#5e605d] hover:text-[#222222] hover:bg-[#f0f4f4] transition-colors"
+            >
+              Overview
+            </Link>
             <Link
               href="/dq-rules"
-              className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[#5e605d] hover:text-[#222222] hover:bg-[#f0f4f4] transition-colors"
             >
-              <ShieldCheck className="h-4 w-4" />
-              DQ Rules
+              <ShieldCheck className="h-3.5 w-3.5 text-[#a20a29]" />
+              Data Quality Rules
             </Link>
             <a
               href="http://localhost:8000/docs"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[#5e605d] hover:text-[#222222] hover:bg-[#f0f4f4] transition-colors"
             >
-              <FileText className="h-4 w-4" />
-              API Docs
+              <FileText className="h-3.5 w-3.5 text-[#005656]" />
+              API Specs
             </a>
           </nav>
         </div>
 
-        <Badge variant="outline">Pipeline Ready</Badge>
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-2 text-xs text-[#5e605d] border border-[#e0e1dc] px-2.5 py-1 rounded-md bg-[#fbfbfb]">
+            <span className="inline-block h-2 w-2 rounded-full bg-[#005656]" />
+            <span>Operational</span>
+          </div>
+          <Badge className="bg-[#a20a29] hover:bg-[#850821] text-white text-xs font-medium px-2.5 py-0.5 border-none">
+            Production
+          </Badge>
+        </div>
       </div>
     </header>
   );

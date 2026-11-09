@@ -75,21 +75,52 @@ export default function DQRulesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
+    <div className="min-h-screen bg-[#fbfbfb] text-[#222222] flex flex-col font-sans">
       <Header />
 
-      <main className="flex-1 max-w-6xl mx-auto px-6 py-8 w-full space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Data Quality Rules & Runs</h1>
-          <p className="text-muted-foreground mt-1">
-            Configure validation rules to automatically detect incomplete, junk, or non-compliant tickets.
-          </p>
+      <main className="flex-1 max-w-7xl mx-auto px-6 py-8 w-full space-y-8">
+        {/* Page Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[#e0e1dc] pb-6">
+          <div>
+            <div className="text-xs font-semibold text-[#005656] uppercase tracking-wider mb-1">
+              Quality Assurance Pipeline
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#222222]">
+              Data Quality Rules & Evaluation
+            </h1>
+            <p className="text-[#5e605d] text-sm mt-1 max-w-2xl">
+              Deterministic validation engine for incoming ServiceNow and Jira incidents. Detect incomplete descriptions, evaluate required fields, and prevent defective records from reaching operations.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                fetchRules();
+                fetchRuns();
+              }}
+              className="h-9 text-xs gap-1.5 border-[#e0e1dc] text-[#222222] hover:bg-[#f0f4f4]"
+            >
+              <RefreshCw className="h-3.5 w-3.5 text-[#005656]" />
+              Refresh
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleOpenCreate}
+              className="h-9 text-xs gap-1.5 bg-[#a20a29] hover:bg-[#850821] text-white shadow-xs font-semibold"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New Rule
+            </Button>
+          </div>
         </div>
 
         {rulesError && (
-          <div className="p-4 rounded-md bg-destructive/15 text-destructive border border-destructive/30 flex items-center gap-3">
-            <AlertCircle className="h-5 w-5 shrink-0" />
-            <p className="text-sm font-medium">Error connecting to backend: {rulesError}</p>
+          <div className="p-3.5 rounded-md bg-[#fdf2f4] text-[#a20a29] border border-[#f5c2cb] flex items-center gap-3">
+            <AlertCircle className="h-4 w-4 shrink-0 text-[#a20a29]" />
+            <p className="text-xs font-medium">Unable to connect to the backend service: {rulesError}</p>
           </div>
         )}
 
@@ -98,24 +129,17 @@ export default function DQRulesPage() {
           <RunPipelineCard onRun={handleExecuteRun} />
         </section>
 
-        {/* Section 2: Rule Configuration */}
-        <section className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* Section 2: Configured Rule Engine */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold">Configured Rules</h2>
-              <p className="text-sm text-muted-foreground">
-                Evaluated in order of priority (lowest priority number executed first; first match flags the ticket).
+              <h2 className="text-lg font-bold tracking-tight text-[#222222]">Configured Validation Rules</h2>
+              <p className="text-xs text-[#5e605d]">
+                Rules execute in priority order. The first matching rule applies its defect flag and reason.
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => fetchRules()} disabled={rulesLoading}>
-                <RefreshCw className={`h-4 w-4 mr-1.5 ${rulesLoading ? "animate-spin" : ""}`} />
-                Refresh
-              </Button>
-              <Button size="sm" onClick={handleOpenCreate}>
-                <Plus className="h-4 w-4 mr-1.5" />
-                Add DQ Rule
-              </Button>
+            <div className="text-xs font-medium text-[#005656] bg-[#f0f4f4] px-2.5 py-1 rounded">
+              {rules.length} {rules.length === 1 ? "rule" : "rules"} configured
             </div>
           </div>
 
@@ -128,19 +152,18 @@ export default function DQRulesPage() {
           />
         </section>
 
-        {/* Section 3: Run History & Revert */}
-        <section className="space-y-4">
+        {/* Section 3: Execution Run History & Reverts */}
+        <section className="space-y-3 pt-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold">Evaluation Run History</h2>
-              <p className="text-sm text-muted-foreground">
-                Audit trail of all automated and manual DQ pipeline runs with instant one-click revert.
+              <h2 className="text-lg font-bold tracking-tight text-[#222222]">Evaluation History & Audit</h2>
+              <p className="text-xs text-[#5e605d]">
+                Audit trail of manual and automated pipeline executions with ticket metrics and rollback capability.
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => fetchRuns()} disabled={runsLoading}>
-              <RefreshCw className={`h-4 w-4 mr-1.5 ${runsLoading ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
+            <div className="text-xs font-medium text-[#005656] bg-[#f0f4f4] px-2.5 py-1 rounded">
+              {runs.length} {runs.length === 1 ? "execution" : "executions"}
+            </div>
           </div>
 
           <RunHistoryTable
@@ -150,18 +173,22 @@ export default function DQRulesPage() {
             onInspect={getRunDetail}
           />
         </section>
+
+        {/* Modal Dialog for Create/Edit */}
+        <RuleFormDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          ruleToEdit={editingRule}
+          onSubmit={handleRuleFormSubmit}
+        />
       </main>
 
-      <footer className="border-t py-6 text-center text-sm text-muted-foreground">
-        AMS Agentic Incident Management System
+      <footer className="border-t border-[#e0e1dc] py-5 mt-12 bg-white">
+        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between text-xs text-[#5e605d]">
+          <span className="font-semibold text-[#222222]">First-match-wins evaluation logic</span>
+          <span>10 deterministic operators</span>
+        </div>
       </footer>
-
-      <RuleFormDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        ruleToEdit={editingRule}
-        onSubmit={handleRuleFormSubmit}
-      />
     </div>
   );
 }

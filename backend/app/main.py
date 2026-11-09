@@ -35,9 +35,9 @@ def create_application() -> FastAPI:
     """Build and configure the FastAPI application instance."""
     app = FastAPI(
         title=settings.PROJECT_NAME,
-        openapi_url=f"{settings.API_V1_STR}/openapi.json" if settings.DEBUG else None,
-        docs_url=f"{settings.API_V1_STR}/docs" if settings.DEBUG else None,
-        redoc_url=f"{settings.API_V1_STR}/redoc" if settings.DEBUG else None,
+        openapi_url="/openapi.json",
+        docs_url="/docs",
+        redoc_url="/redoc",
         lifespan=lifespan,
     )
 

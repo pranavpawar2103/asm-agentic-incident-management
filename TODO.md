@@ -1,15 +1,17 @@
-# TODO: Data Quality Rules and Masking
+# TODO: Data Quality Rules, Masking & ServiceNow Ingestion
 
-Context: [db/scripts/DQ_RULES_FEATURE.md](.agents/skills/dq-rules-workflow/references/DQ_RULES_FEATURE.md), [DEVELOPMENT.md](DEVELOPMENT.md) in both frontend, backend, and db folders only if necessary.
+Context: [backend/db/scripts/DQ_RULES_FEATURE.md](backend/db/scripts/DQ_RULES_FEATURE.md), [AGENTS.md](AGENTS.md), and [backend/DEVELOPMENT.md](backend/DEVELOPMENT.md).
 
 | # | Task | Owner | Depends on | Status |
 |---|---|---|---|---|
-| 1 | Review DB scripts and the DQ rules feature notes | DONE | none | Open |
+| 1 | Review DB scripts and the DQ rules feature notes | DONE | none | Complete |
 | 2 | Create dummy data for the ServiceNow schema, covering the DQ rules | TBD | 1 | Open |
 | 3 | Create API endpoints | DONE | 1 | Complete |
-| 4 | Add Microsoft Presidio masking, run as a Celery worker with RabbitMQ | TBD | none (feeds 2 and 3) | Open |
+| 4 | Add Presidio masking before DB ingestion (`caller`, descriptions, notes) | DONE | 7 | Complete |
 | 5 | Update the UI for DQ rule configuration | DONE | 3 | Complete |
 | 6 | Add schemas for different ticket sources as well | TBD | none | Open |
+| 7 | Synchronize ServiceNow ticket ingestion with DB schema & Excel upload API | DONE | 1, 3 | Complete |
+| 8 | Build Frontend UI for ServiceNow Excel Upload & Ingestion | TBD | 7 | Open |
 
 ## 1. Review DB scripts and feature notes
 - Review [01_create_servicenow_tickets.sql](db/scripts/01_create_servicenow_tickets.sql) and [02_create_dq_rules.sql](db/scripts/02_create_dq_rules.sql). Run them on a dev database to verify.
@@ -30,15 +32,29 @@ Context: [db/scripts/DQ_RULES_FEATURE.md](.agents/skills/dq-rules-workflow/refer
 - Follow the async conventions in [DEVELOPMENT.md](DEVELOPMENT.md).
 - Done when: endpoints are covered by tests against the dummy data.
 
-## 4. Presidio masking (Celery and RabbitMQ)
-- Mask `caller`, descriptions and resolution notes before the ticket is stored.
-- Celery worker with RabbitMQ as the broker. Add the settings to `.env.example` and the services to `docker-compose.yml`.
-- Follow the redaction plan in [architectures/data-quality.html](../architectures/data-quality.html) (Presidio with spaCy, keep-list for order/invoice/SKU identifiers, allow-list for application names).
-- Open: whether to store reversible tokens (a `redaction_tokens` table was left out for now).
-- Done when: no caller name or email survives in stored tickets, checked on the dummy data.
+## 4. Presidio masking before DB ingestion
+- Mask `caller`, `short_description`, `description`, and `resolution_notes` before records are stored in PostgreSQL (`servicenow_tickets` and other sources).
+- Implemented inline execution via Microsoft Presidio + spaCy NER (`Masker`), with batch-level known caller mapping and entity leak verification.
+- Adheres to approved Option A: Irreversible anonymized placeholders (`<PERSON_n>`, `<EMAIL_n>`, `<PHONE_n>`, `<EMPLOYEE_ID_n>`) at rest in PostgreSQL, with upstream `ticket_id` link.
+- System accounts (`Service Desk`, `Integration User`) and enterprise application/error entities are strictly preserved.
+- Added toggle `PII_MASKING_ENABLED` in `app/core/config.py`.
+- Verified with 5 dedicated tests in `backend/tests/test_ingestion_masking.py` and 15 tests in `backend/tests/test_servicenow_api.py`.
+- Done when: no caller name, personal phone, or email survives in stored ticket records, verified on sample ticket sets. (Complete)
 
 ## 5. UI for rule configuration
 - Rule list with enable toggle, create, edit and delete.
 - Choose field, operator, value, source or service, and when to apply (existing, new, both).
 - Apply button, run history, and revert.
 - Done when: all of the above work against the API from item 3.
+
+## 7. Synchronize ServiceNow ticket ingestion with DB schema & Excel upload API
+- Aligned `ServiceNowTicket` ORM model, schema, and `ingest_servicenow_file` with canonical `servicenow_tickets` table (`01_create_servicenow_tickets.sql`).
+- Added dedicated `POST /api/v1/servicenow/ingest` upload endpoint with `.xlsx` restriction and 10MB payload limit.
+- Hardened service with single batch query prefetch (eliminating N+1), in-file duplicate deduplication, header-aware partial updates, and corrupt file safety.
+- Covered by 15 tests in `backend/tests/test_servicenow_api.py`.
+
+## 8. Frontend UI for ServiceNow Excel Upload & Ingestion
+- Add `ingestServiceNowTickets(file: File)` to `frontend/src/lib/api.ts`.
+- Build ServiceNow ticket upload component (file input or drag-and-drop using shadcn/ui).
+- Render upload results summary (processed, created, updated, skipped counts).
+- Verify with `npm run build` in `frontend/`.

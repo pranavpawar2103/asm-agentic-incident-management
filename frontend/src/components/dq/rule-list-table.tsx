@@ -45,87 +45,96 @@ export function RuleListTable({
   }
 
   return (
-    <div className="rounded-md border">
+    <div className="rounded-lg border border-[#e0e1dc] overflow-hidden bg-white shadow-xs">
       <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-12 text-center">Pri</TableHead>
-            <TableHead>Rule Name</TableHead>
-            <TableHead>Condition</TableHead>
-            <TableHead>Scope</TableHead>
-            <TableHead>Source / Service</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+        <TableHeader className="bg-[#f0f4f4]">
+          <TableRow className="border-[#e0e1dc] hover:bg-transparent">
+            <TableHead className="w-16 text-center text-xs font-semibold text-[#005656]">Priority</TableHead>
+            <TableHead className="text-xs font-semibold text-[#005656]">Rule Name</TableHead>
+            <TableHead className="text-xs font-semibold text-[#005656]">Condition</TableHead>
+            <TableHead className="text-xs font-semibold text-[#005656]">Scope</TableHead>
+            <TableHead className="text-xs font-semibold text-[#005656]">Source</TableHead>
+            <TableHead className="text-xs font-semibold text-[#005656]">Status</TableHead>
+            <TableHead className="text-right text-xs font-semibold text-[#005656]">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rules.map((rule) => (
-            <TableRow key={rule.id}>
-              <TableCell className="font-mono text-xs text-center text-muted-foreground">
-                {rule.priority ?? 100}
+            <TableRow key={rule.id} className="border-[#e0e1dc] hover:bg-[#fafaf8] transition-colors">
+              <TableCell className="text-xs text-center font-mono font-semibold text-[#5e605d]">
+                #{rule.priority ?? 100}
               </TableCell>
-              <TableCell className="font-medium">
-                <div>{rule.name}</div>
-                <div className="text-xs text-muted-foreground font-mono">
-                  field: {rule.field_name}
+              <TableCell className="text-xs">
+                <div className="font-semibold text-[#222222]">{rule.name}</div>
+                <div className="text-xs text-[#5e605d] font-mono mt-0.5">
+                  field: <span className="text-[#a20a29] font-medium">{rule.field_name}</span>
                 </div>
               </TableCell>
-              <TableCell className="text-sm">
-                <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-xs mr-1">
-                  {rule.operator}
-                </span>
-                {rule.value !== null && rule.value !== undefined && (
-                  <span className="text-muted-foreground font-mono text-xs">
-                    &quot;{rule.value}&quot;
+              <TableCell className="text-xs">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-mono bg-[#f0f4f4] text-[#005656] font-semibold px-2 py-0.5 rounded text-xs border border-[#bfe5e5]">
+                    {rule.operator}
                   </span>
-                )}
+                  {rule.value !== null && rule.value !== undefined && (
+                    <span className="text-[#222222] font-mono text-xs bg-[#f4f4f2] px-1.5 py-0.5 rounded border border-[#e0e1dc]">
+                      &quot;{rule.value}&quot;
+                    </span>
+                  )}
+                </div>
               </TableCell>
               <TableCell>
-                <Badge variant="outline" className="capitalize text-xs">
+                <Badge variant="outline" className="capitalize text-xs font-medium text-[#5e605d] border-[#e0e1dc] bg-white">
                   {rule.apply_to}
                 </Badge>
               </TableCell>
-              <TableCell className="text-xs text-muted-foreground">
-                <div>{rule.source || "all sources"}</div>
-                {rule.service && <div>svc: {rule.service}</div>}
+              <TableCell className="text-xs text-[#5e605d]">
+                <div className="font-medium text-[#222222]">{rule.source || "All sources"}</div>
+                {rule.service && (
+                  <div className="text-[#5e605d] font-mono mt-0.5">svc: {rule.service}</div>
+                )}
               </TableCell>
               <TableCell>
-                <Badge variant={rule.is_enabled ? "default" : "secondary"}>
-                  {rule.is_enabled ? "Enabled" : "Disabled"}
+                <Badge
+                  className={`text-xs font-semibold px-2.5 py-0.5 border-none ${
+                    rule.is_enabled
+                      ? "bg-[#005656] text-white hover:bg-[#004444]"
+                      : "bg-[#f4f4f2] text-[#5e605d] hover:bg-[#e9e9e6]"
+                  }`}
+                >
+                  {rule.is_enabled ? "Active" : "Disabled"}
                 </Badge>
               </TableCell>
               <TableCell className="text-right space-x-1">
                 <Button
                   size="sm"
                   variant="ghost"
-                  title={rule.is_enabled ? "Disable" : "Enable"}
                   onClick={() => onToggle(rule.id, rule.is_enabled)}
+                  className="h-8 w-8 p-0 text-[#5e605d] hover:text-[#005656] hover:bg-[#f0f4f4]"
+                  title={rule.is_enabled ? "Disable Rule" : "Enable Rule"}
                 >
-                  <Power
-                    className={`h-4 w-4 ${
-                      rule.is_enabled ? "text-emerald-600" : "text-muted-foreground"
-                    }`}
-                  />
+                  <Power className="h-3.5 w-3.5" />
                 </Button>
                 <Button
                   size="sm"
                   variant="ghost"
-                  title="Edit"
                   onClick={() => onEdit(rule)}
+                  className="h-8 w-8 p-0 text-[#5e605d] hover:text-[#a20a29] hover:bg-[#fdf2f4]"
+                  title="Edit Rule"
                 >
-                  <Edit2 className="h-4 w-4" />
+                  <Edit2 className="h-3.5 w-3.5" />
                 </Button>
                 <Button
                   size="sm"
                   variant="ghost"
-                  title="Delete"
                   onClick={() => {
-                    if (confirm(`Are you sure you want to delete rule "${rule.name}"?`)) {
+                    if (confirm(`Delete rule "${rule.name}"?`)) {
                       onDelete(rule.id);
                     }
                   }}
+                  className="h-8 w-8 p-0 text-[#5e605d] hover:text-[#a20a29] hover:bg-[#fdf2f4]"
+                  title="Delete Rule"
                 >
-                  <Trash2 className="h-4 w-4 text-destructive" />
+                  <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </TableCell>
             </TableRow>

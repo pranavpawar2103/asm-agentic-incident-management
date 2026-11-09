@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     TICKETS_FILE: Path = REPO_DIR / "data" / "tickets" / "ams_tickets.xlsx"
     REGISTRY_DIR: Path = REPO_DIR / "data" / "registry"  # editable rules and application terms
 
+    # Privacy / PII Masking
+    PII_MASKING_ENABLED: bool = True
+
     # Model access (app/llm). Off by default: without it the pipeline runs rules only.
     LLM_ENABLED: bool = False
     LLM_PROVIDER: Literal["anthropic", "bedrock"] = "anthropic"
@@ -78,6 +81,7 @@ class Settings(BaseSettings):
 # allow-list) is set in the environment only, so the API cannot loosen its own guardrails.
 ADMIN_EDITABLE = frozenset({
     "LOG_LEVEL",
+    "PII_MASKING_ENABLED",
     "LLM_ENABLED",
     "LLM_PROVIDER",
     "LLM_MODEL",

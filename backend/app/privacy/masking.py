@@ -96,12 +96,18 @@ class Masker:
     def __init__(self, known_names: Iterable[str | None] = (), known_emails: Iterable[str | None] = ()):
         """known_names / known_emails come from the ticket's own fields and are always masked, even where NER misses them."""
         system = {a.casefold() for a in load_registry("pii.yaml")["system_accounts"]}
-        self._names = sorted({n.strip() for n in known_names if n and n.strip() and n.strip().casefold() not in system})
+        self._names = sorted({
+            n.strip() for n in known_names
+            if n and n.strip() and n.strip().casefold() not in system and not PLACEHOLDER.fullmatch(n.strip())
+        })
         parts = Counter(p.casefold() for n in self._names for p in set(n.split()) if len(p) >= 3)
         self._parts = sorted(parts)  # every first and last name is masked on its own too
         # ...and linked to the full name when no other known person shares it
         self._name_parts = {p.casefold(): n.casefold() for n in self._names for p in n.split() if parts.get(p.casefold()) == 1}
-        self._emails = [e.strip() for e in known_emails if e and e.strip()]
+        self._emails = [
+            e.strip() for e in known_emails
+            if e and e.strip() and not PLACEHOLDER.fullmatch(e.strip())
+        ]
         self._issued: dict[tuple[str, str], str] = {}  # (label, normalised value) -> placeholder
         self._values: dict[str, str] = {}  # placeholder -> original value
         self.counts: Counter = Counter()  # findings per label; safe to log

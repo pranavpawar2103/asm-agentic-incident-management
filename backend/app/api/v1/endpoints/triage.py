@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.ticket import PipelineStatus, Ticket
+from app.schemas.storm import FirstMessageOut, SlaItemOut
 from app.schemas.triage import (
     ReviewCreate,
     ReviewOut,
@@ -16,9 +17,8 @@ from app.schemas.triage import (
     TriageCheckResponse,
     TriageRunResponse,
 )
-from app.schemas.storm import FirstMessageOut, SlaItemOut
-from app.services import sla, triage_review
-from app.services.triage import run_triage, triage_ticket
+from app.services.triage import review as triage_review
+from app.services.triage import run_triage, sla, triage_ticket
 
 router = APIRouter(prefix="/triage", tags=["triage"])
 

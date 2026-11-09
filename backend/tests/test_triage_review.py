@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.models.ticket import AgentRun, PipelineStatus, Review, Ticket
 from app.services.triage import run_triage
-from app.services.triage_review import ReviewError, pending, report, review
+from app.services.triage.review import ReviewError, pending, report, review
 from tests.test_triage import db  # noqa: F401  (fixture: every open ticket as if Data Quality had passed it)
 
 

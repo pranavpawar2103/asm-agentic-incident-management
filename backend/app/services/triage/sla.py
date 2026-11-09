@@ -15,7 +15,7 @@ from app.agents.triage.rules import find_rule
 from app.core.registry import load_registry, register_document
 from app.models.ticket import AgentRun, PipelineStatus, Review, Storm, Ticket
 from app.services.data_quality import last_run
-from app.services.triage import AGENT
+from app.services.triage.run import AGENT
 
 SEVERITY = {"breached": 0, "breach_likely": 1, "watch": 2, "ok": 3}
 

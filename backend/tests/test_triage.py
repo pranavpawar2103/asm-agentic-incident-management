@@ -17,7 +17,7 @@ from app.core.config import bump_config_version, settings
 from app.db.session import Base
 from app.models.ticket import AgentRun, PipelineStatus, Ticket
 from app.services.ingestion import ingest_workbook
-from app.services.triage import _input_hash, _recommendation, run_triage, triage_ticket
+from app.services.triage.run import _input_hash, _recommendation, run_triage, triage_ticket
 from tests.test_llm import _reply, provider  # noqa: F401  (fixture)
 
 OCTOBER_10 = datetime(2026, 10, 10, 9, 0)  # outside every window

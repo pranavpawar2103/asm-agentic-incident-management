@@ -92,7 +92,7 @@ export default function ManageDQRulesPage() {
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 [&>*:first-child]:col-span-2 md:[&>*:first-child]:col-span-1">
         <StatTile
           variant="primary"
           label="Active rules"

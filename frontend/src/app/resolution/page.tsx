@@ -117,7 +117,7 @@ export default function ResolutionPage() {
         context="Searches application runbooks for triaged incidents and drafts resolution steps."
       />
 
-      <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <StatTile variant="primary" label="Runbooks indexed" value={7} />
         <StatTile label="Core applications" value={7} />
       </div>

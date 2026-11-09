@@ -149,7 +149,7 @@ export default function TicketsPage() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatTile variant="primary" label="Ingested tickets" value={totalCount} />
         <StatTile label="Clean" value={cleanCount} window={`of ${tickets.length} loaded`} />
         <StatTile label="Flagged by data quality" value={flaggedCount} window={`of ${tickets.length} loaded`} />
@@ -168,8 +168,8 @@ export default function TicketsPage() {
       )}
 
       <Card className="gap-0 py-0">
-        <div className="flex flex-col gap-2 border-b border-border px-4 py-3 md:flex-row">
-          <div className="relative flex-1">
+        <div className="flex flex-wrap gap-2 border-b border-border px-4 py-3">
+          <div className="relative flex-[1_1_100%] min-[1100px]:flex-[2_1_18rem]">
             <Search className="pointer-events-none absolute top-2 left-2.5 size-4 text-muted-foreground" aria-hidden="true" />
             <Input
               aria-label="Search tickets"
@@ -182,7 +182,7 @@ export default function TicketsPage() {
               className="pl-8"
             />
           </div>
-          <div className="w-full md:w-44">
+          <div className="flex-[1_1_9rem]">
             <select
               aria-label="Service"
               value={serviceFilter}
@@ -200,7 +200,7 @@ export default function TicketsPage() {
               ))}
             </select>
           </div>
-          <div className="w-full md:w-40">
+          <div className="flex-[1_1_9rem]">
             <select
               aria-label="Data quality status"
               value={dqFilter}
@@ -215,7 +215,7 @@ export default function TicketsPage() {
               <option value="flagged">Flagged only</option>
             </select>
           </div>
-          <div className="w-full md:w-40">
+          <div className="flex-[1_1_9rem]">
             <select
               aria-label="Lifecycle"
               value={statusFilter}

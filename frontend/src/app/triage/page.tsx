@@ -150,7 +150,7 @@ export default function TriagePage() {
         context="Re-evaluates the priority of validated tickets against business impact rules and overrides inflated reporter priorities."
       />
 
-      <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)] [&>*:first-child]:col-span-2 sm:[&>*:first-child]:col-span-1">
         <StatTile variant="primary" label="Active policies" value={TRIAGE_RULES.length} />
         <StatTile label="Promote priority" value={promotedCount} />
         <StatTile label="Demote priority" value={demotedCount} />

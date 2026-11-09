@@ -26,15 +26,15 @@ interface RuleFormDialogProps {
 
 const OPERATORS: { label: string; value: DQOperator; needsValue: boolean }[] = [
   { label: "Equals", value: "equals", needsValue: true },
-  { label: "Not Equals", value: "not_equals", needsValue: true },
+  { label: "Not equals", value: "not_equals", needsValue: true },
   { label: "Contains", value: "contains", needsValue: true },
-  { label: "Not Contains", value: "not_contains", needsValue: true },
-  { label: "Starts With", value: "starts_with", needsValue: true },
-  { label: "Regex Match", value: "regex", needsValue: true },
-  { label: "Is Empty", value: "is_empty", needsValue: false },
-  { label: "Is Not Empty", value: "is_not_empty", needsValue: false },
-  { label: "Length Less Than (<)", value: "length_lt", needsValue: true },
-  { label: "Length Greater Than (>)", value: "length_gt", needsValue: true },
+  { label: "Not contains", value: "not_contains", needsValue: true },
+  { label: "Starts with", value: "starts_with", needsValue: true },
+  { label: "Regex match", value: "regex", needsValue: true },
+  { label: "Is empty", value: "is_empty", needsValue: false },
+  { label: "Is not empty", value: "is_not_empty", needsValue: false },
+  { label: "Length less than", value: "length_lt", needsValue: true },
+  { label: "Length greater than", value: "length_gt", needsValue: true },
 ];
 
 const FIELDS = [
@@ -145,9 +145,9 @@ export function RuleFormDialog({
           <div className="flex flex-col gap-4">
             {/* Rule Name */}
             <div>
-              <label className="mb-1.5 block text-xs font-medium">Rule Name *</label>
+              <label className="mb-1.5 block text-xs font-medium">Rule name *</label>
               <Input
-                placeholder="e.g. Missing Short Description"
+                placeholder="e.g. Missing short description"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -156,7 +156,7 @@ export function RuleFormDialog({
 
             {/* Rule Description */}
             <div>
-              <label className="mb-1.5 block text-xs font-medium">Rule Description (Optional)</label>
+              <label className="mb-1.5 block text-xs font-medium">Description (optional)</label>
               <Input
                 placeholder="e.g. Flags tickets where summary does not meet minimum quality criteria"
                 value={description}
@@ -170,7 +170,7 @@ export function RuleFormDialog({
             {/* Target Field & Operator */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="mb-1.5 block text-xs font-medium">Target Field *</label>
+                <label className="mb-1.5 block text-xs font-medium">Field *</label>
                 <select
                   value={field}
                   onChange={(e) => setField(e.target.value)}
@@ -209,7 +209,7 @@ export function RuleFormDialog({
             {/* Value if operator needs value */}
             {needsValue && (
               <div>
-                <label className="mb-1.5 block text-xs font-medium">Comparison Value *</label>
+                <label className="mb-1.5 block text-xs font-medium">Value *</label>
                 <Input
                   placeholder={
                     operator.startsWith("length_") ? "e.g. 10 (characters)" : "e.g. test or pattern"
@@ -222,28 +222,28 @@ export function RuleFormDialog({
 
             {/* Lifecycle Scope */}
             <div>
-              <label className="mb-1.5 block text-xs font-medium">Lifecycle Scope (Apply To)</label>
+              <label className="mb-1.5 block text-xs font-medium">Applies to</label>
               <select
                 value={applyTo}
                 onChange={(e) => setApplyTo(e.target.value as ApplyToScope)}
                 className={selectClass}
               >
-                <option value="both">Both (Existing Stored & Ingestion Stream)</option>
-                <option value="existing">Existing Tickets Only</option>
-                <option value="new">New Ingestion Tickets Only</option>
+                <option value="both">Stored and incoming tickets</option>
+                <option value="existing">Stored tickets only</option>
+                <option value="new">Incoming tickets only</option>
               </select>
             </div>
 
             {/* Apply To Source & Service */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="mb-1.5 block text-xs font-medium">Apply To Source</label>
+                <label className="mb-1.5 block text-xs font-medium">Source</label>
                 <select
                   value={source}
                   onChange={(e) => setSource(e.target.value)}
                   className={selectClass}
                 >
-                  <option value="">Global (All Sources)</option>
+                  <option value="">All sources</option>
                   {sourcesList.map((s) => (
                     <option key={s.code} value={s.code}>
                       {s.name}
@@ -251,12 +251,12 @@ export function RuleFormDialog({
                   ))}
                 </select>
                 <span className="mt-1 block text-xs text-muted-foreground">
-                  Leave as Global to run across all feeds, or select a source.
+                  Leave as All sources to run across every feed, or select a source.
                 </span>
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-medium">Apply To Service (Optional)</label>
+                <label className="mb-1.5 block text-xs font-medium">Service (optional)</label>
                 <Input
                   placeholder="e.g. PayrollPro"
                   value={service}

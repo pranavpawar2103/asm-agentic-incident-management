@@ -78,16 +78,16 @@ export function RunHistoryTable({
             <ListRow
               key={run.id}
               itemKey={`#${run.id}`}
-              title={<span className="capitalize">{run.run_type} run · {run.scope}</span>}
+              title={<span className="capitalize">{run.trigger} run · {run.scope}</span>}
               meta={
                 <>
-                  <span className="font-mono">{new Date(run.created_at).toLocaleString()}</span>
+                  <span className="font-mono">{new Date(run.started_at).toLocaleString()}</span>
                   <span aria-hidden="true">·</span>
                   <span className="tabular-nums">
                     <span className={run.tickets_flagged ? "font-medium text-foreground" : undefined}>
                       {run.tickets_flagged ?? 0}
                     </span>{" "}
-                    flagged of {run.tickets_scanned ?? 0} scanned
+                    flagged of {run.tickets_evaluated ?? 0} checked
                   </span>
                 </>
               }
@@ -151,11 +151,11 @@ export function RunHistoryTable({
                 <ListRow
                   key={m.ticket_id}
                   itemKey={m.ticket_id}
-                  title={m.short_description || "—"}
+                  title={m.ticket_short_description || "—"}
                   meta={[
                     `${m.rule_name} (rule #${m.rule_id})`,
-                    m.service || "No service",
-                    m.priority || "No priority",
+                    m.ticket_service || "No service",
+                    m.ticket_priority || "No priority",
                   ].join(" · ")}
                 />
               ))}

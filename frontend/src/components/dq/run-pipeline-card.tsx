@@ -29,7 +29,7 @@ export function RunPipelineCard({ onRun }: RunPipelineCardProps) {
       await onRun({
         scope,
         source: source.trim() || undefined,
-        run_type: "manual",
+        trigger: "manual",
       });
       setStatusMsg({ type: "success", text: "DQ pipeline executed successfully!" });
     } catch (err: unknown) {

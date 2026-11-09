@@ -48,7 +48,7 @@ export default function ExecuteDQRulesPage() {
 
       <RunPipelineCard onRun={handleExecuteRun} />
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 [&>*:first-child]:col-span-2 md:[&>*:first-child]:col-span-1">
         <StatTile variant="primary" label="Runs" value={runs.length} window="Logged with execution snapshots" />
         <StatTile
           label="Active rules applied"

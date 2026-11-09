@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { AppShell } from "@/components/console/app-shell";
 import { PageHeader } from "@/components/console/page-header";
 import { ListRow } from "@/components/console/list-row";
+import { HomeSummary } from "@/components/console/home-summary";
 import { ArrowRight, CircleCheck } from "lucide-react";
 
 const agentStages = [
@@ -49,6 +50,8 @@ export default function Home() {
           </>
         }
       />
+
+      <HomeSummary />
 
       <Card className="gap-0 py-0">
         <div className="border-b border-border px-4 py-3">

@@ -52,6 +52,7 @@ class CallSpec[T: BaseModel]:
     wrapper: str  # puts the masked ticket in its own block: "...{ticket}..."
     retry_note: str  # sent after an invalid answer: "...{wrapped}...{problem}..."
     max_tokens: int  # includes thinking, which is always on for current models
+    model: str | None = None  # None = LLM_MODEL; set for calls that need a different (cheaper) model
 
 
 @dataclass(frozen=True)
@@ -84,15 +85,16 @@ def _build_sdk(version: int) -> anthropic.Anthropic | anthropic.AnthropicBedrock
     return anthropic.Anthropic(**options)
 
 
-def model_id() -> str:
-    if settings.LLM_PROVIDER == "bedrock" and not settings.LLM_MODEL.startswith(BEDROCK_MODEL_PREFIX):
-        return f"{BEDROCK_MODEL_PREFIX}{settings.LLM_MODEL}"
-    return settings.LLM_MODEL
+def model_id(model: str | None = None) -> str:
+    model = model or settings.LLM_MODEL
+    if settings.LLM_PROVIDER == "bedrock" and not model.startswith(BEDROCK_MODEL_PREFIX):
+        return f"{BEDROCK_MODEL_PREFIX}{model}"
+    return model
 
 
 def _request(spec: CallSpec, content: str):
     params: dict[str, Any] = {
-        "model": model_id(),
+        "model": model_id(spec.model),
         "max_tokens": spec.max_tokens,
         # cached: the instructions (and any rulebook in them) are identical on every call; ignored below 512 tokens
         "system": [{"type": "text", "text": spec.system, "cache_control": {"type": "ephemeral"}}],
@@ -175,6 +177,6 @@ def call_model[T: BaseModel](spec: CallSpec[T], user: MaskedText, masker: Masker
 def _log(spec: CallSpec, outcome: str, attempts: int, started: float, tokens_in: int, tokens_out: int) -> None:
     latency = round((time.perf_counter() - started) * 1000)
     logger.info(
-        f"model call {spec.name} {spec.prompt_version} model={model_id()} outcome={outcome} attempts={attempts} "
+        f"model call {spec.name} {spec.prompt_version} model={model_id(spec.model)} outcome={outcome} attempts={attempts} "
         f"tokens_in={tokens_in} tokens_out={tokens_out} latency_ms={latency}"
     )

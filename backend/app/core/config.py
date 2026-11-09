@@ -44,6 +44,7 @@ class Settings(BaseSettings):
 
     TICKETS_FILE: Path = REPO_DIR / "data" / "tickets" / "ams_tickets.xlsx"
     REGISTRY_DIR: Path = REPO_DIR / "data" / "registry"  # editable rules and application terms
+    KB_DIR: Path = REPO_DIR / "data" / "knowledge_base"  # Resolution agent runbooks (markdown)
 
     # Privacy / PII Masking
     PII_MASKING_ENABLED: bool = True
@@ -59,6 +60,13 @@ class Settings(BaseSettings):
     LLM_VALIDATION_ATTEMPTS: int = Field(2, ge=1, le=5)  # 2 = one retry when an answer fails validation
     AWS_REGION: str = "ca-central-1"  # bedrock only; must be in ALLOWED_AWS_REGIONS
     ANTHROPIC_API_KEY: SecretStr = SecretStr("")  # empty = the SDK's own lookup (environment, `ant auth login`)
+
+    # Resolution agent: knowledge base chunking and retrieval index (see backend/db/scripts/04_create_kb_chunks.sql)
+    EMBEDDING_MODEL: str = "google/embeddinggemma-300m"  # embeddings are generated outside this app; recorded per row
+    EMBEDDING_DIM: int = Field(256, ge=32, le=1024)  # Matryoshka truncation; must match kb_chunks.embedding
+    KB_CONTEXT_MODEL: str = "claude-haiku-5-5"  # contextual retrieval: one short blurb per chunk, at ingest time
+    KB_CHUNK_SIZE: int = Field(1200, gt=100)  # characters; larger issue blocks are split with overlap
+    KB_CHUNK_OVERLAP: int = Field(150, ge=0)
 
     # Data Quality run
     DQ_OUTAGE_BREAKER: int = Field(5, ge=1)  # consecutive "model unavailable" failures that stop a run

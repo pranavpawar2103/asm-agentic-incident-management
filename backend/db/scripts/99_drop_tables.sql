@@ -1,4 +1,5 @@
 -- DESTRUCTIVE: removes all ticket and data quality data. Dev/test only.
+DROP TABLE IF EXISTS kb_chunks;
 DROP TABLE IF EXISTS config_changes;
 DROP TABLE IF EXISTS config_overrides;
 DROP TABLE IF EXISTS dq_run_tickets;

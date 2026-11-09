@@ -142,3 +142,15 @@ When implementing new endpoints, services, or agent tasks:
 - [ ] Use `select()`, `update()`, and `delete()` SQLAlchemy 2.0 executable statements.
 - [ ] Ensure sensitive fields pass through `Masker` before storing in persistent tables.
 - [ ] Keep `.env.example` updated when introducing new environment variables.
+
+---
+
+## 7. Resolution Agent: Knowledge Base Index
+
+Runbooks in `data/knowledge_base/*.md` are chunked, contextualised and indexed in `kb_chunks` (`backend/db/scripts/04_create_kb_chunks.sql`).
+
+- **Chunks**: one `### KB-…` issue is one chunk; oversized issues are split with `KB_CHUNK_SIZE` / `KB_CHUNK_OVERLAP` (`app/agents/resolution/chunking.py`).
+- **Contextual text**: one short blurb per chunk from `KB_CONTEXT_MODEL` (Haiku), prompt `kb_chunk_context` in `data/registry/prompts.yaml`. Falls back to the app name and heading path when the model is off.
+- **Embeddings**: generated outside the app. Implement `Embedder` (`app/agents/resolution/embedding.py`, `google/embeddinggemma-300m`, `EMBEDDING_DIM=256`) and call `embed_pending(embedder)`. Rows stay `embedding IS NULL` until then.
+- **Ingest**: `cd backend && ../.venv/bin/python -m app.agents.resolution.ingest`. Unchanged chunks are skipped by `content_hash`.
+- **Retrieval**: `retrieve(db, query_text, query_vec, Filters(app=..., kb_id=..., criticality_tier=..., section_type=...))`. Filters are applied first, then dense (pgvector) and full-text search are fused with RRF. Without `query_vec`, full-text search only.

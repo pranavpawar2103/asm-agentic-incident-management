@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     # Model access (app/llm). Off by default: without it the pipeline runs rules only.
     LLM_ENABLED: bool = False
     LLM_PROVIDER: Literal["anthropic", "bedrock"] = "anthropic"
-    LLM_MODEL: str = "claude-opus-5-5"
+    LLM_MODEL: str = "claude-sonnet-5-5"  # same accuracy as Opus on the triage eval at half the cost
     LLM_EFFORT: Literal["low", "medium", "high", "xhigh", "max"] = "low"  # classification-sized tasks
     LLM_REFUSAL_FALLBACK: bool = True  # Claude API only; not supported by every model
     LLM_TIMEOUT_S: float = Field(60.0, gt=0)
@@ -62,6 +62,9 @@ class Settings(BaseSettings):
 
     # Data Quality run
     DQ_OUTAGE_BREAKER: int = Field(5, ge=1)  # consecutive "model unavailable" failures that stop a run
+
+    # Triage run
+    TRIAGE_OUTAGE_BREAKER: int = Field(5, ge=1)  # same, for the Triage model stage
 
     # Admin API. Unset key = admin endpoints switched off. Set both in the environment only, never through the API.
     ADMIN_API_KEY: str = ""
@@ -89,6 +92,7 @@ ADMIN_EDITABLE = frozenset({
     "LLM_VALIDATION_ATTEMPTS",
     "AWS_REGION",
     "DQ_OUTAGE_BREAKER",
+    "TRIAGE_OUTAGE_BREAKER",
 })
 
 settings = Settings()

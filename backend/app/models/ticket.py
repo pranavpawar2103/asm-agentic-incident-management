@@ -19,6 +19,8 @@ class PipelineStatus(StrEnum):
     PENDING = "pending"  # waiting for the Data Quality check
     AWAITING_INFO = "awaiting_info"  # information missing; chase email drafted
     DQ_PASSED = "dq_passed"  # good enough, ready for Triage
+    TRIAGED = "triaged"  # priority recommended, waiting for an engineer to review it
+    REVIEWED = "reviewed"  # an engineer decided the priority; ready for Resolution
     REJECTED = "rejected"  # not a real ticket, e.g. a test
     ERROR = "error"  # failed in a way that needs a person to look
 
@@ -59,6 +61,7 @@ class Ticket(Base):
     closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     pipeline_status: Mapped[str] = mapped_column(String(32), index=True, default=PipelineStatus.PENDING)
+    storm_id: Mapped[Optional[int]] = mapped_column(ForeignKey("storms.id", ondelete="SET NULL"), index=True)
 
     raw: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)  # untouched source row
     ingested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -101,3 +104,41 @@ class Comment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     ticket: Mapped[Ticket] = relationship(back_populates="comments")
+
+
+class Review(Base):
+    """A person's decision on an agent's recommendation. The recommendation in agent_runs is never changed."""
+
+    __tablename__ = "agent_reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ticket_id: Mapped[str] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), index=True)
+    agent_run_id: Mapped[int] = mapped_column(ForeignKey("agent_runs.id", ondelete="CASCADE"), index=True)
+    agent: Mapped[str] = mapped_column(String(32), index=True)  # triage
+    action: Mapped[str] = mapped_column(String(16))  # accepted, edited, rejected
+    final_priority: Mapped[Optional[int]] = mapped_column(Integer)  # what the engineer decided; None if no priority applies
+    reason_code: Mapped[Optional[str]] = mapped_column(String(32))  # why the recommendation was changed
+    note: Mapped[Optional[str]] = mapped_column(Text)
+    reviewer: Mapped[str] = mapped_column(String(256))  # as given by the caller; not verified until there are logins
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    agent_run: Mapped[AgentRun] = relationship()
+
+
+class Storm(Base):
+    """Many people reporting the same issue at once. One main ticket is triaged; the others follow it."""
+
+    __tablename__ = "storms"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    application: Mapped[Optional[str]] = mapped_column(String(64), index=True)  # None when it spans applications (login)
+    issue_key: Mapped[str] = mapped_column(String(128))  # job:PAY_CALC_MONTHLY, rule:checkout_failing, cross:login, text
+    main_ticket_id: Mapped[str] = mapped_column(String(32), index=True)  # the failed job if there is one, else the first
+    people: Mapped[int] = mapped_column(Integer)  # distinct reporters
+    ticket_count: Mapped[int] = mapped_column(Integer)
+    opened_at: Mapped[datetime] = mapped_column(DateTime)  # first ticket
+    last_ticket_at: Mapped[datetime] = mapped_column(DateTime)
+    status: Mapped[str] = mapped_column(String(16), index=True)  # open, closed (quiet for quiet_min), declared
+    declared_by: Mapped[Optional[str]] = mapped_column(String(256))  # a person declared a major incident; hand-off point
+    declared_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -9,6 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.agents.data_quality.signals import Signals
 from app.core.config import config_version
 from app.core.registry import load_registry, register_document
 from app.llm import CallAudit, CallSpec, call_model
@@ -60,12 +61,17 @@ def _build_spec(version: int) -> CallSpec[DQCompleteness]:
 register_document("data_quality_prompts", "prompts.yaml", dq_completeness_spec)
 
 
-def check_completeness(ticket: Ticket, body: str) -> tuple[DQCompleteness, CallAudit]:
-    """One model call on the masked ticket. Raises app.llm.ModelError when there is no usable answer."""
+def check_completeness(ticket: Ticket, body: str, signals: Signals | None = None) -> tuple[DQCompleteness, CallAudit]:
+    """One model call on the masked ticket, with what the rules already found (the application, a code or ID).
+    Raises app.llm.ModelError when there is no usable answer."""
     prompt = load_registry("prompts.yaml")[DQ_PROMPT_NAME]
     masker = Masker(known_names=[ticket.reporter_name], known_emails=[ticket.reporter_email])
+    application = ticket.application or (signals.app_found if signals else None)
+    if signals and signals.app_source == "keyword":
+        application = prompt["found_in_text"].format(application=signals.app_found)
     text = prompt["ticket_template"].format(
-        application=ticket.application or prompt["not_given"],
+        application=application or prompt["not_given"],
+        identifier=prompt["identifier_yes" if signals and signals.identifier_found else "identifier_no"],
         summary=ticket.summary,
         attachments=ticket.attachments or prompt["not_given"],
         body=body,

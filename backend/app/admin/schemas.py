@@ -9,8 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field
 class SettingOut(BaseModel):
     """One setting: what runs now, what .env says, and whether an admin changed it."""
     key: str = Field(..., examples=["LLM_MODEL"])
-    value: Any = Field(..., examples=["claude-opus-5-5"])
-    baseline: Any = Field(..., examples=["claude-opus-5-5"], description="Value from .env or the default")
+    value: Any = Field(..., examples=["claude-sonnet-5-5"])
+    baseline: Any = Field(..., examples=["claude-sonnet-5-5"], description="Value from .env or the default")
     overridden: bool = Field(..., examples=[False])
     editable: bool = Field(..., examples=[True], description="False for paths, secrets and guardrail limits")
 

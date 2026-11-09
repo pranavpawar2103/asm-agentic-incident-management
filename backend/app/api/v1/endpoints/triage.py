@@ -1,5 +1,7 @@
 """Triage agent endpoints."""
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
@@ -14,7 +16,8 @@ from app.schemas.triage import (
     TriageCheckResponse,
     TriageRunResponse,
 )
-from app.services import triage_review
+from app.schemas.storm import FirstMessageOut, SlaItemOut
+from app.services import sla, triage_review
 from app.services.triage import run_triage, triage_ticket
 
 router = APIRouter(prefix="/triage", tags=["triage"])
@@ -96,3 +99,41 @@ async def review_report(days: int = Query(7, ge=1, le=365), db: AsyncSession = D
         raised_by_engineer=r.raised_by_engineer, lowered_by_engineer=r.lowered_by_engineer, by_reason=dict(r.by_reason),
         by_rule={k: dict(v) for k, v in r.by_rule.items()}, by_stage={k: dict(v) for k, v in r.by_stage.items()},
     )
+
+
+@router.get("/sla", response_model=list[SlaItemOut], summary="Open P1/P2 tickets and their SLA risk")
+async def sla_risk(
+    at: datetime | None = Query(None, description="Treat this as the current time (default: now, UTC); for demos and tests"),
+    db: AsyncSession = Depends(get_db),
+) -> list[SlaItemOut]:
+    """Open tickets whose priority in force (the engineer's, else the recommendation) is P1 or P2, most at risk first,
+    each with its first-message draft. Nothing is sent: a scheduler or a screen polls this."""
+    return await db.run_sync(lambda s: [_sla_item(i) for i in sla.open_p1_p2(s, at)])
+
+
+def _sla_item(i: sla.SlaItem) -> SlaItemOut:
+    t = i.ticket
+    return SlaItemOut(
+        ticket_id=t.id, summary=t.summary, application=i.application, priority=i.priority,
+        priority_from=i.priority_from, opened_at=t.opened_at, due_at=i.sla.due_at, used_percent=round(i.sla.used * 100),
+        state=i.sla.state, minutes_left=i.sla.minutes_left, storm_id=i.storm_id,
+        first_message=FirstMessageOut(text=i.message.text, send_by=i.message.send_by, minutes_left=i.message.minutes_left),
+    )
+
+
+@router.get("/tickets/{ticket_id}/first-message", response_model=FirstMessageOut, summary="First message draft for a P1/P2")
+async def first_message(
+    ticket_id: str,
+    at: datetime | None = Query(None, description="Treat this as the current time (default: now, UTC)"),
+    db: AsyncSession = Depends(get_db),
+) -> FirstMessageOut:
+    """The draft for one open P1/P2 ticket, from the rulebook's wording; a person edits and sends it."""
+    def one(s: Session) -> FirstMessageOut:
+        item = next((i for i in sla.open_p1_p2(s, at) if i.ticket.id == ticket_id), None)
+        if item is None:
+            if s.get(Ticket, ticket_id) is None:
+                raise HTTPException(status_code=404, detail=f"Ticket {ticket_id} not found")
+            raise HTTPException(status_code=409, detail=f"Ticket {ticket_id} is not an open, triaged P1/P2")
+        return FirstMessageOut(text=item.message.text, send_by=item.message.send_by, minutes_left=item.message.minutes_left)
+
+    return await db.run_sync(one)

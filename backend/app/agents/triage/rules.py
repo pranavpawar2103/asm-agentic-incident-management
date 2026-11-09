@@ -24,6 +24,7 @@ class Facts:
     windows: tuple[str, ...]
     failed_jobs: tuple[str, ...]
     context: Callable[[Raise], bool]  # whether a raise's business context holds
+    in_storm: bool = False  # the ticket belongs to a storm
 
 
 @dataclass(frozen=True)
@@ -71,7 +72,7 @@ def _must_follow(rule: str | None, scope: str, facts: Facts, text: str, config: 
     fired = [
         m for m in config.must_follow
         if (m.name == rule or (m.rule is not None and m.rule == rule) or any(p.search(text) for p in m.match)
-            or (m.critical_job and _critical_job_failed(facts, config)))
+            or (m.critical_job and _critical_job_failed(facts, config)) or (m.storm and facts.in_storm))
         and (m.scope is None or m.scope == scope) and (m.window is None or m.window in facts.windows)
     ]
     return min(fired, key=lambda m: m.priority) if fired else None
@@ -137,13 +138,13 @@ def without_rulebook(decision: Decision, reported: int | None) -> Decision:
     return Decision(reported, decision.rule, reason, kept_reported=True)
 
 
-def evaluate(summary: str, body: str, application: str | None = None, opened_at=None) -> RuleResult:
+def evaluate(summary: str, body: str, application: str | None = None, opened_at=None, in_storm: bool = False) -> RuleResult:
     """The application's rules (the most severe match wins), else the first generic rule that matches."""
     config = get_config()
     signals = compute_signals(summary, body, application, opened_at, config)
     text = clean_text(summary, body, config)
     facts = Facts(signals.application, signals.scope, signals.windows, signals.failed_jobs,
-                  lambda r: any(p.search(text) for p in r.context))
+                  lambda r: any(p.search(text) for p in r.context), in_storm)
 
     app = config.applications.get(signals.application) if signals.application else None
     hits = [r for r in app.rules if r.matches(text)] if app else []
@@ -156,7 +157,7 @@ def evaluate(summary: str, body: str, application: str | None = None, opened_at=
 
     decision, rule = min(scored, key=lambda s: s[0].priority)
     must = next((m for m in config.must_follow if m.name == decision.must_follow), None)
-    settled_by_text = must is not None and must.scope is None and (bool(must.match) or must.critical_job)
+    settled_by_text = must is not None and must.scope is None and (bool(must.match) or must.critical_job or must.storm)
     missing = tuple(
         n for n in (rule.needs if rule else ())
         if n == "scope" and signals.scope not in KNOWN_SCOPES  # and it changes the answer

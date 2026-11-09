@@ -74,6 +74,7 @@ def _when(r: Raise) -> str:
 def _must_follow_line(m: MustFollow) -> str:
     when = [*([f"rule {m.rule} applies"] if m.rule else []),
             *(["a critical batch job failed in its window"] if m.critical_job else []),
+            *(["the ticket belongs to a storm"] if m.storm else []),
             *(["wide impact"] if m.scope else []), *([f"in the {m.window}"] if m.window else [])]
     pick = " You may choose it as the rule." if m.match else ""
     return f"- {m.name}: {m.about}. P{m.priority}{' when ' + ' and '.join(when) if when else ''}.{pick}"

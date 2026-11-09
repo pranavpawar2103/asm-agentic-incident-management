@@ -33,13 +33,17 @@ scope:
 
 # Applied last. Each fires on its own `match` patterns, or when its `rule` is the rule chosen for the ticket,
 # and only if its conditions hold (scope: wide | window: <name>). `critical_job` fires when a job that is critical
-# (see jobs.yaml) failed inside its critical window.
+# (see jobs.yaml) failed inside its critical window. `storm` fires for a ticket that belongs to a storm.
 must_follow:
   - name: security_incident
     about: Possible security incident or data breach
     priority: 1
     match:
       - '\b(data breach|security incident|ransomware|phishing|malware|unauthori[sz]ed access|account (compromised|hacked))\b'
+  - name: storm
+    about: Many people report the same issue at once (a storm; see storms.yaml); the main ticket is triaged, the rest follow it
+    priority: 1
+    storm: true
   - name: critical_job_failed
     about: A critical batch job failed before its deadline
     priority: 1

@@ -14,8 +14,9 @@ from app.agents.triage.signals import clean_text
 from app.agents.triage.verdict import Verdict
 from app.core.config import settings
 from app.llm import CallAudit, ModelError
-from app.models.ticket import AgentRun, PipelineStatus, Ticket
+from app.models.ticket import AgentRun, PipelineStatus, Storm, Ticket
 from app.services.data_quality import OutageBreaker, fingerprint, last_run, reporter_text
+from app.services.storms import detect_storms
 
 logger = logging.getLogger("app.triage")
 
@@ -34,7 +35,8 @@ class RunResult:
 def _input_hash(ticket: Ticket, body: str) -> str:
     """What the triage saw: a change to the ticket, the rulebook, or the model and its prompt re-triages it."""
     stages = f"{settings.LLM_MODEL}|{triage_priority_spec().prompt_version}" if settings.LLM_ENABLED else "rules"
-    return fingerprint(ticket.summary, body, ticket.application, str(ticket.opened_at), get_config().version, stages)
+    return fingerprint(ticket.summary, body, ticket.application, str(ticket.opened_at), str(ticket.storm_id),
+                       get_config().version, stages)
 
 
 def _recommendation(ticket: Ticket, decision: Decision | None, reason: str, ai: str) -> dict:
@@ -79,9 +81,9 @@ def triage_ticket(db: Session, ticket: Ticket, use_model: bool = True) -> tuple[
     own answer (leaning high) is used. Returns the final run and the model error, if there was one."""
     config = get_config()
     body = reporter_text(ticket)
-    outcome = evaluate(ticket.summary, body, ticket.application, ticket.opened_at)
+    outcome = evaluate(ticket.summary, body, ticket.application, ticket.opened_at, in_storm=ticket.storm_id is not None)
     rules_output = {"stage": "rules", "rules_version": config.version, "missing": list(outcome.missing),
-                    "signals": asdict(outcome.signals)}
+                    "application": outcome.signals.application, "storm_id": ticket.storm_id, "signals": asdict(outcome.signals)}
     final = AgentRun(ticket_id=ticket.id, agent=AGENT, verdict=outcome.verdict, input_hash=_input_hash(ticket, body),
                      output={**rules_output, **_recommendation(ticket, outcome.decision, outcome.reason, "not_needed")})
     db.add(final)
@@ -98,7 +100,8 @@ def triage_ticket(db: Session, ticket: Ticket, use_model: bool = True) -> tuple[
         else:
             final = AgentRun(
                 ticket_id=ticket.id, agent=AGENT, verdict=Verdict.of(decision.priority), input_hash=final.input_hash,
-                output={"stage": "model", "rules_version": config.version,
+                output={"stage": "model", "rules_version": config.version, "storm_id": ticket.storm_id,
+                        "application": answer.application or outcome.signals.application,
                         **_recommendation(ticket, decision, decision.reason, "used"),
                         "answer": answer.model_dump(), "dropped_facts": dropped, "audit": asdict(audit)},
             )
@@ -115,13 +118,34 @@ def triage_ticket(db: Session, ticket: Ticket, use_model: bool = True) -> tuple[
     return final, error
 
 
+def _follow_main(db: Session, ticket: Ticket, storm: Storm, main_run: AgentRun) -> AgentRun:
+    """A ticket in a storm follows its main ticket: the same priority, with no model call and no message of its own."""
+    old = main_run.output
+    reason = f"Same issue as {storm.main_ticket_id} (storm {storm.id}); the priority follows the main ticket"
+    decision = Decision(old["priority"], old["rule"] or "storm", reason, old["must_follow"])
+    run = AgentRun(
+        ticket_id=ticket.id, agent=AGENT, verdict=main_run.verdict, input_hash=_input_hash(ticket, reporter_text(ticket)),
+        output={"stage": "storm", "rules_version": get_config().version, "application": old["application"],
+                "storm_id": storm.id, "linked_to": storm.main_ticket_id,
+                **_recommendation(ticket, decision, reason, "not_needed")},
+    )
+    db.add(run)
+    ticket.pipeline_status = PipelineStatus.TRIAGED
+    return run
+
+
 def run_triage(db: Session) -> RunResult:
-    """Triage every ticket that passed Data Quality. Tickets whose input has not changed since their last triage are skipped."""
+    """Triage every ticket that passed Data Quality. Tickets whose input has not changed since their last triage are skipped.
+    Storms are found first: the main ticket of each is triaged first and the others in it follow its priority."""
+    detect_storms(db)
     tickets = db.scalars(
         select(Ticket)
         .where(Ticket.pipeline_status == PipelineStatus.DQ_PASSED)
         .options(selectinload(Ticket.agent_runs), selectinload(Ticket.comments))
     ).all()
+    storms = {s.id: s for s in db.scalars(select(Storm).where(Storm.id.in_({t.storm_id for t in tickets if t.storm_id})))}
+    tickets.sort(key=lambda t: not (t.storm_id and storms[t.storm_id].main_ticket_id == t.id))  # main tickets first
+    triaged: dict[str, AgentRun] = {}  # this run's results, by ticket id
 
     result = RunResult()
     breaker = OutageBreaker(settings.TRIAGE_OUTAGE_BREAKER)
@@ -132,7 +156,13 @@ def run_triage(db: Session) -> RunResult:
             result.skipped += 1
             continue
 
-        agent_run, error = triage_ticket(db, ticket, use_model)
+        storm = storms.get(ticket.storm_id)
+        main_run = triaged.get(storm.main_ticket_id) if storm and storm.main_ticket_id != ticket.id else None
+        if main_run is not None and main_run.verdict != Verdict.UNCERTAIN:
+            agent_run, error = _follow_main(db, ticket, storm, main_run), None
+        else:
+            agent_run, error = triage_ticket(db, ticket, use_model)
+        triaged[ticket.id] = agent_run
         if error:
             result.model_errors += 1
             logger.warning(f"Triage: model stage failed for {ticket.id}: {error!r}")

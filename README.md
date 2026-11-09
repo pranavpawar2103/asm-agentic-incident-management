@@ -114,6 +114,11 @@ The expected outcome for every ticket: whether it should pass Data Quality, what
 | `GET /api/v1/triage/review-queue` | Triaged tickets waiting for an engineer, flagged ones first, with the recommendation and why |
 | `POST /api/v1/triage/tickets/{id}/review` | Accept, edit or reject the recommendation (`accepted` / `edited` / `rejected`, with a reason code) |
 | `GET /api/v1/triage/review-report` | How often engineers change the recommendation, by rule, stage and reason (`days`, default 7) |
+| `GET /api/v1/triage/sla` | Open P1/P2 tickets (the engineer's priority, else the recommendation), most at risk first, each with its first-message draft (`at` sets the clock for demos) |
+| `GET /api/v1/triage/tickets/{id}/first-message` | The first-message draft for one open P1/P2 ticket |
+| `POST /api/v1/storms/run` | Find storms among the open tickets. Safe to re-run: existing storms are updated |
+| `GET /api/v1/storms` | List storms (`status`: open, closed, declared) with their tickets |
+| `POST /api/v1/storms/{id}/declare` | A person declares a major incident: records who and when, and is where the major-incident agent starts |
 | `/api/v1/admin/settings`, `/api/v1/admin/documents`, `/api/v1/admin/changes` | Change settings, rules, PII terms and prompts at runtime; change history. Needs `X-Admin-Key` |
 | `GET /api/v1/health` | Liveness check |
 
@@ -137,6 +142,10 @@ The Data Quality model step asks Claude one question about each ticket the rules
 The Triage agent recommends a priority from the rulebook in `data/registry/triage_rules.yaml` and the batch-job list in `jobs.yaml`, both built from the knowledge base. Each application has its own rules (symptoms, error codes, job names) with the priority its KB page gives, when to raise it (wider impact, a calendar window such as the payroll window or month-end close, business context such as a customer meeting) and the facts it `needs`. Generic rules (outage, slow, cosmetic, request) cover the rest by impact × urgency and the application's tier; then the application's ceiling; then the must-follow rules, which no ceiling can cap: security, a critical job failing in its window, checkout down, SSO down for many, salary late in the payroll window (all P1), and a cosmetic portal issue (P5). The reporter's own urgency words are ignored.
 
 The rules settle a ticket only when every fact its rule needs is known and changes the answer; otherwise the model is asked once, with the facts the code found. It reports the rule, how many are affected and the business context, each with an exact quote from the ticket; a fact whose quote is not in the ticket goes back to unknown. The code then calculates the priority, so it always follows the rulebook. Without a usable model answer (switched off, or down) the rules' own answer is used, and an unknown fact leans high only when it could make the ticket P1/P2. The reporter's priority is never changed: the recommendation is stored in `agent_runs`, and a lowered P1/P2, a lean-high guess or a difference of more than two levels is flagged for review. A change to the rulebook re-triages every ticket. An engineer then accepts, edits or rejects each recommendation; the decision is stored separately in `agent_reviews`, next to the recommendation, and nothing is written back to ServiceNow or JIRA. The review report shows where engineers disagree with the agent, which is where the rulebook needs fixing. Scored with `python evaluation/triage_report.py`, on a tuning set and on held-out ServiceNow tickets.
+
+**Storms.** Open tickets that report the same issue at once become a storm: the same application, opened within `window_min` of each other, sharing a known issue (one of the application's rules, or a failed batch job) or very similar text; login problems also group across applications. It becomes a storm at `people_needed` different reporters (`data/registry/storms.yaml`, provisional, per-application overrides possible). One main ticket (the failed job if there is one, else the first) is triaged, always P1 through the `storm` must-follow rule; the others follow its priority with no model call of their own. Grouping runs over the open tickets at the start of each Triage run, so it does not have to happen the moment a ticket arrives. A person can declare a storm a major incident; that only records who and when. The major-incident agent itself (who to call, bridge, updates, closure notes) is not built.
+
+**SLA risk and the first message.** For open P1/P2 tickets `GET /api/v1/triage/sla` shows how much of the SLA target is used (`ok`, `watch` at 50%, `breach_likely` at 80%, `breached`) and a first-message draft written from a template in `data/registry/sla.yaml` (provisional: P2 = 8 h, P1 = 4 h is an assumption). The draft names the application and the problem in the rulebook's words, never a person, and a person sends it. Nothing is sent or scheduled by the system; a scheduler or a screen polls the endpoint.
 
 Personal information is masked with Microsoft Presidio before any text reaches a model: names, emails, phones, employee IDs, PAN, Aadhaar, bank accounts and cards become numbered placeholders such as `<PERSON_1>`, and the real values are put back into the model's answer locally. Application names, error codes, record IDs, sites and dates stay readable. The database keeps the original data. `python backend/scripts/mask_servicenow_tickets.py` writes `data/tickets/servicenow_tickets_masked.xlsx`, with the same person getting the same placeholder across the file. `python evaluation/pii_leak_report.py` checks that no known name or email survives.
 
@@ -180,6 +189,9 @@ Set `DATABASE_URL` in `backend/.env` (Supabase, `postgresql+asyncpg://...`); nev
 | Admin API: runtime settings, rules, PII terms, prompts, change history | Done (shared key; real logins planned) |
 | Priority rulebook + Triage agent: rules per application, model step (Sonnet 5.5) | Done; scored live |
 | Engineer review of Triage: queue, accept / edit / reject, agreement report | Done (reviewer not verified until there are logins) |
+| Storm grouping, P1 for the main ticket, declare a major incident | Done, on synthetic tickets; thresholds provisional |
+| SLA risk and P1/P2 first-message draft | Done; targets provisional; no sending or reminders yet |
+| Major-incident agent (who to call, bridge, updates, closure notes) | Planned; needs an on-call roster |
 | Resolution agent over the knowledge base | Planned |
 | Chat UI (`frontend/`) | Planned |
 | Scoring reports: Data Quality rules, PII leaks, Triage rules | Done |

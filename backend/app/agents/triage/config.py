@@ -60,6 +60,7 @@ class MustFollow:
     critical_job: bool = False
     scope: str | None = None
     window: str | None = None
+    storm: bool = False  # fires for a ticket that belongs to a storm
 
 
 @dataclass(frozen=True)
@@ -170,7 +171,7 @@ def _build(version: int) -> TriageConfig:
     rule_names = {r.name for app in applications.values() for r in app.rules}
     must_follow = tuple(
         MustFollow(m["name"], m["about"], m["priority"], _patterns(m.get("match", [])), m.get("rule"),
-                   m.get("critical_job", False), m.get("scope"), _window(m.get("window"), windows))
+                   m.get("critical_job", False), m.get("scope"), _window(m.get("window"), windows), m.get("storm", False))
         for m in book["must_follow"]
     )
     if unknown := [m.rule for m in must_follow if m.rule and m.rule not in rule_names]:

@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class DQOperator(str, Enum):
@@ -17,6 +17,21 @@ class DQOperator(str, Enum):
     is_not_empty = "is_not_empty"
     length_lt = "length_lt"
     length_gt = "length_gt"
+
+
+class TicketSource(str, Enum):
+    servicenow = "servicenow"
+    jira = "jira"
+    mailbox = "mailbox"
+
+
+class TicketSourceResponse(BaseModel):
+    code: str
+    name: str
+    description: Optional[str] = None
+    is_active: bool = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DQApplyTo(str, Enum):
@@ -43,10 +58,20 @@ class DQRuleBase(BaseModel):
     field: str = Field(..., max_length=64)
     operator: DQOperator
     value: Optional[str] = None
-    source: Optional[str] = Field(None, max_length=32)
+    source: Optional[TicketSource] = None
     service: Optional[str] = Field(None, max_length=64)
     apply_to: DQApplyTo = DQApplyTo.both
     is_enabled: bool = True
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def normalize_source(cls, v: Any) -> Optional[str]:
+        if v is None or v == "":
+            return None
+        if isinstance(v, str):
+            val = v.strip().lower()
+            return val if val else None
+        return v
 
 
 class DQRuleCreate(DQRuleBase):
@@ -59,10 +84,20 @@ class DQRuleUpdate(BaseModel):
     field: Optional[str] = Field(None, max_length=64)
     operator: Optional[DQOperator] = None
     value: Optional[str] = None
-    source: Optional[str] = Field(None, max_length=32)
+    source: Optional[TicketSource] = None
     service: Optional[str] = Field(None, max_length=64)
     apply_to: Optional[DQApplyTo] = None
     is_enabled: Optional[bool] = None
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def normalize_source(cls, v: Any) -> Optional[str]:
+        if v is None or v == "":
+            return None
+        if isinstance(v, str):
+            val = v.strip().lower()
+            return val if val else None
+        return v
 
 
 class DQRuleResponse(DQRuleBase):

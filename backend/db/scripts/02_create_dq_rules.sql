@@ -1,6 +1,23 @@
 -- Data quality rules, apply runs and the tickets each run flagged (PostgreSQL / Supabase). Safe to re-run.
 -- Run after 01_create_servicenow_tickets.sql.
 
+-- Ticket source lookup reference table
+CREATE TABLE IF NOT EXISTS ticket_sources (
+    code VARCHAR(32) PRIMARY KEY,
+    name VARCHAR(64) NOT NULL,
+    description TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Seed standard enterprise ticket source systems
+INSERT INTO ticket_sources (code, name, description)
+VALUES 
+    ('servicenow', 'ServiceNow', 'Enterprise ServiceNow IT Service Management incident feed'),
+    ('jira', 'Jira', 'Atlassian Jira Service Management / Software issue feed'),
+    ('mailbox', 'Support Mailbox', 'Inbound support email mailbox and shared distribution list')
+ON CONFLICT (code) DO NOTHING;
+
 -- A rule: "<field> <operator> <value>" -> flags the ticket (dq_flag = true, dq_reason = rule name).
 CREATE TABLE IF NOT EXISTS dq_rules (
     id SERIAL PRIMARY KEY,
@@ -11,7 +28,7 @@ CREATE TABLE IF NOT EXISTS dq_rules (
         'equals', 'not_equals', 'contains', 'not_contains', 'starts_with',
         'regex', 'is_empty', 'is_not_empty', 'length_lt', 'length_gt')),
     value TEXT,                          -- NULL for is_empty / is_not_empty
-    source VARCHAR(32),                  -- NULL = global (any source), e.g. 'ServiceNow'
+    source VARCHAR(32) REFERENCES ticket_sources(code) ON DELETE SET NULL, -- NULL = global (any source)
     service VARCHAR(64),                 -- NULL = any service
     apply_to VARCHAR(16) NOT NULL DEFAULT 'both' CHECK (apply_to IN ('existing', 'new', 'both')),
                                          -- existing = stored unresolved tickets (closed_at IS NULL), new = incoming tickets
@@ -22,6 +39,7 @@ CREATE TABLE IF NOT EXISTS dq_rules (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_dq_rules_name_active ON dq_rules (lower(name)) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS ix_dq_rules_enabled ON dq_rules (is_enabled) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS ix_dq_rules_source ON dq_rules (source);
 
 -- One row per apply: history of runs.
 CREATE TABLE IF NOT EXISTS dq_runs (

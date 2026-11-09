@@ -13,6 +13,18 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class TicketSource(Base):
+    """Reference lookup table for incident ticket source systems."""
+
+    __tablename__ = "ticket_sources"
+
+    code: Mapped[str] = mapped_column(String(32), primary_key=True)
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
 class DQRule(Base):
     """User-managed data quality rule."""
 
@@ -24,7 +36,7 @@ class DQRule(Base):
     field: Mapped[str] = mapped_column(String(64), nullable=False)
     operator: Mapped[str] = mapped_column(String(32), nullable=False)
     value: Mapped[Optional[str]] = mapped_column(Text)
-    source: Mapped[Optional[str]] = mapped_column(String(32))
+    source: Mapped[Optional[str]] = mapped_column(ForeignKey("ticket_sources.code", ondelete="SET NULL"))
     service: Mapped[Optional[str]] = mapped_column(String(64))
     apply_to: Mapped[str] = mapped_column(String(16), default="both", nullable=False)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -32,6 +44,8 @@ class DQRule(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    source_ref: Mapped[Optional[TicketSource]] = relationship()
 
 
 class DQRun(Base):

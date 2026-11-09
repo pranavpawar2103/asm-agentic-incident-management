@@ -3,7 +3,7 @@
 Filters are a hard boundary (the Phase 3 pre-filter in the architecture doc): a chunk outside them is never scored.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -51,6 +51,28 @@ def rrf(rankings: list[list[int]], k: int = RRF_K) -> list[tuple[int, float]]:
         for rank, chunk_id in enumerate(ranking, start=1):
             scores[chunk_id] = scores.get(chunk_id, 0.0) + 1.0 / (k + rank)
     return sorted(scores.items(), key=lambda item: item[1], reverse=True)
+
+
+def fuse_chunks(lists: list[list[RetrievedChunk]], top_n: int) -> list[RetrievedChunk]:
+    """RRF across several result lists, e.g. one per query variant. Each chunk keeps its metadata; score is the fused one."""
+    by_id: dict[int, RetrievedChunk] = {}
+    for chunks in lists:
+        for chunk in chunks:
+            by_id.setdefault(chunk.id, chunk)
+    fused = rrf([[chunk.id for chunk in chunks] for chunks in lists])
+    return [replace(by_id[chunk_id], score=score) for chunk_id, score in fused[:top_n]]
+
+
+async def search_all(
+    db: AsyncSession,
+    queries: list[str],
+    vectors: list[list[float] | None],
+    filters: Filters | None = None,
+    top_n: int = 20,
+) -> list[RetrievedChunk]:
+    """Every query through retrieve(), fused. vectors[i] is the embedding of queries[i], or None for full-text only."""
+    results = [await retrieve(db, q, v, filters, top_n) for q, v in zip(queries, vectors, strict=True)]
+    return fuse_chunks(results, top_n)
 
 
 def _dense_sql(where: str) -> str:

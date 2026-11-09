@@ -154,3 +154,13 @@ Runbooks in `data/knowledge_base/*.md` are chunked, contextualised and indexed i
 - **Embeddings**: generated outside the app. Implement `Embedder` (`app/agents/resolution/embedding.py`, `google/embeddinggemma-300m`, `EMBEDDING_DIM=256`) and call `embed_pending(embedder)`. Rows stay `embedding IS NULL` until then.
 - **Ingest**: `cd backend && ../.venv/bin/python -m app.agents.resolution.ingest`. Unchanged chunks are skipped by `content_hash`.
 - **Retrieval**: `retrieve(db, query_text, query_vec, Filters(app=..., kb_id=..., criticality_tier=..., section_type=...))`. Filters are applied first, then dense (pgvector) and full-text search are fused with RRF. Without `query_vec`, full-text search only.
+
+### Resolution run (`POST /api/v1/resolution/run`)
+
+Runs over tickets with `pipeline_status = reviewed`; writes one `agent_runs` row per ticket (`agent = resolution`, verdict `resolved` or `no_match`). Unchanged tickets are skipped by input hash.
+
+- **Filter**: `filters_for(ticket.application)` pre-filters the search to that runbook (`app/agents/resolution/filters.py`).
+- **Query transformation**: `expand()` makes a multi-query call (3–5 queries) and a HyDE call in parallel; the ticket summary is always the first query. Without a model: summary only (`queries.py`).
+- **ReAct loop**: `resolve()` searches, reads up to 5 excerpts per search, and finishes with `ResolutionAnswer`. Max 4 extra searches. Citations not in the excerpts are sent back to the model (`react.py`, `answer.py`). Rules R1–R3 are in `resolution_react` in `prompts.yaml`.
+- **Query vectors**: the endpoint runs full-text only until an `Embedder` is wired in (`run_resolution(embedder=...)`).
+- **Model errors**: a ticket whose model call fails gets no `agent_runs` row and is retried on the next run.

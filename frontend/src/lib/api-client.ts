@@ -1,4 +1,13 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const getApiBase = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (typeof window !== "undefined") {
+    // Client-side browser request: use same-origin proxy or default localhost:8000
+    return "/api/v1";
+  }
+  return "http://127.0.0.1:8000/api/v1";
+};
 
 export class ApiError extends Error {
   status: number;
@@ -10,7 +19,8 @@ export class ApiError extends Error {
 }
 
 export async function apiClient<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const url = `${API_BASE}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+  const base = getApiBase();
+  const url = `${base}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
   const res = await fetch(url, {
     headers: {
       "Content-Type": "application/json",

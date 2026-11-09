@@ -203,3 +203,17 @@ async def test_revert_dq_run(dq_client, mock_db):
         response = await dq_client.post("/api/v1/dq/runs/1/revert")
         assert response.status_code == 200
         assert response.json()["status"] == "reverted"
+
+@pytest.mark.asyncio
+async def test_list_ticket_sources(dq_client, mock_db):
+    mock_result = MagicMock()
+    mock_result.all.return_value = []
+    mock_db.scalars.return_value = mock_result
+    response = await dq_client.get("/api/v1/dq/sources")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) >= 3
+    codes = [item["code"] for item in data]
+    assert "servicenow" in codes
+    assert "jira" in codes
+    assert "mailbox" in codes

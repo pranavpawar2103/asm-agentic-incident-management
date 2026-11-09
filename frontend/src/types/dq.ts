@@ -1,6 +1,12 @@
 export type ApplyToScope = "existing" | "new" | "both";
 export type DQRunType = "manual" | "scheduled";
 export type DQRunStatus = "completed" | "failed" | "reverted";
+export type TicketSource = "servicenow" | "jira" | "mailbox";
+
+export interface TicketSourceOption {
+  value: TicketSource;
+  label: string;
+}
 
 export type DQOperator =
   | "equals"
@@ -17,39 +23,40 @@ export type DQOperator =
 export interface DQRule {
   id: number;
   name: string;
-  field_name: string;
+  description?: string | null;
+  field: string;
   operator: DQOperator;
   value?: string | null;
   apply_to: ApplyToScope;
-  source?: string | null;
+  source?: TicketSource | string | null;
   service?: string | null;
-  priority?: number;
   is_enabled: boolean;
   created_at: string;
+  updated_at?: string;
   deleted_at?: string | null;
 }
 
 export interface DQRuleCreateInput {
   name: string;
-  field_name: string;
+  description?: string | null;
+  field: string;
   operator: DQOperator;
   value?: string | null;
   apply_to: ApplyToScope;
-  source?: string | null;
+  source?: TicketSource | string | null;
   service?: string | null;
-  priority?: number;
   is_enabled?: boolean;
 }
 
 export interface DQRuleUpdateInput {
   name?: string;
-  field_name?: string;
+  description?: string | null;
+  field?: string;
   operator?: DQOperator;
   value?: string | null;
   apply_to?: ApplyToScope;
-  source?: string | null;
+  source?: TicketSource | string | null;
   service?: string | null;
-  priority?: number;
   is_enabled?: boolean;
 }
 

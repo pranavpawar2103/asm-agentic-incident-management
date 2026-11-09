@@ -30,16 +30,10 @@ import {
   ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
+import { PriorityChip } from "@/components/console/priority-chip";
 
 const selectClass =
   "h-8 w-full rounded-lg border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
-
-/** Map a ServiceNow priority string ("1 - Critical", "P2", ...) to a chip; unknown values render as text. */
-function PriorityChip({ priority }: { priority?: string | null }) {
-  const n = priority?.match(/[1-4]/)?.[0];
-  if (!n) return <Badge variant="p4">—</Badge>;
-  return <Badge variant={`p${n}` as "p1" | "p2" | "p3" | "p4"} title={priority ?? undefined}>P{n}</Badge>;
-}
 
 export default function TicketsPage() {
   const [tickets, setTickets] = useState<ServiceNowTicket[]>([]);

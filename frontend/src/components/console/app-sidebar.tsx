@@ -1,7 +1,8 @@
 "use client";
 
+import { useId } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   BookOpen,
   FileCode2,
@@ -11,9 +12,12 @@ import {
   ShieldAlert,
   ShieldCheck,
   Ticket,
+  UserRound,
+  Users,
 } from "lucide-react";
 import { cn } from "cn";
 import { ThemeToggle } from "@/components/console/theme-toggle";
+import { ROLES, ViewRole, setViewAs, useViewAs } from "@/lib/view-as";
 
 type NavItem = {
   label: string;
@@ -25,7 +29,7 @@ type NavItem = {
   children?: { label: string; href: string }[];
 };
 
-const GROUPS: { label: string; items: NavItem[] }[] = [
+const ADMIN_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Overview",
     items: [{ label: "Home", href: "/", icon: Home, match: (p) => p === "/" }],
@@ -56,6 +60,20 @@ const GROUPS: { label: string; items: NavItem[] }[] = [
   },
 ];
 
+const ALL_TICKETS: NavItem = { label: "All tickets", href: "/tickets", icon: Ticket, match: (p) => p.startsWith("/tickets") };
+
+const GROUPS_BY_ROLE: Record<ViewRole, { label: string; items: NavItem[] }[]> = {
+  admin: ADMIN_GROUPS,
+  lead: [
+    { label: "Team", items: [{ label: "Team queue", href: "/team", icon: Users, match: (p) => p.startsWith("/team") }] },
+    { label: "Tickets", items: [ALL_TICKETS] },
+  ],
+  engineer: [
+    { label: "My work", items: [{ label: "My tickets", href: "/my-tickets", icon: UserRound, match: (p) => p.startsWith("/my-tickets") }] },
+    { label: "Tickets", items: [ALL_TICKETS] },
+  ],
+};
+
 const itemBase =
   "relative flex h-8 items-center gap-2 rounded-md px-2.5 text-[13px] font-medium text-muted-foreground transition-colors duration-[80ms] hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none";
 const itemActive =
@@ -72,6 +90,10 @@ interface AppSidebarProps {
 
 export function AppSidebar({ compact = false, onToggleCompact, onNavigate, className }: AppSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const role = useViewAs();
+  const viewAsId = useId();
+  const roleInfo = ROLES.find((r) => r.value === role)!;
   const hide = compact ? "md:max-lg:sr-only" : "";
 
   return (
@@ -98,7 +120,7 @@ export function AppSidebar({ compact = false, onToggleCompact, onNavigate, class
       )}
 
       <div className="flex flex-1 flex-col gap-4">
-        {GROUPS.map((group) => (
+        {GROUPS_BY_ROLE[role].map((group) => (
           <div key={group.label} className="flex flex-col gap-1">
             <p className={cn("px-2.5 pb-1 text-xs font-medium text-muted-foreground", hide)}>{group.label}</p>
             <ul className="flex flex-col gap-0.5">
@@ -153,6 +175,29 @@ export function AppSidebar({ compact = false, onToggleCompact, onNavigate, class
       </div>
 
       <div className="flex flex-col gap-0.5 border-t border-sidebar-border pt-3">
+        <div className={cn("flex flex-col gap-1 px-2.5 pb-2", compact && "md:max-lg:hidden")}>
+          <span className="text-[13px] font-semibold text-foreground">{roleInfo.person}</span>
+          <label htmlFor={viewAsId} className="text-xs text-muted-foreground">
+            Viewing as (demo, no sign-in)
+          </label>
+          <select
+            id={viewAsId}
+            value={role}
+            onChange={(e) => {
+              const next = ROLES.find((r) => r.value === e.target.value)!;
+              setViewAs(next.value);
+              router.push(next.home);
+              onNavigate?.();
+            }}
+            className="h-8 w-full rounded-lg border border-input bg-background px-2 text-[13px] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            {ROLES.map((r) => (
+              <option key={r.value} value={r.value}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <a
           href="http://localhost:8000/docs"
           target="_blank"

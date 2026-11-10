@@ -80,6 +80,7 @@ flowchart LR
   - `01_create_servicenow_tickets.sql`: Defines `servicenow_tickets` table with primary key `ticket_id`, timestamp columns (`opened_at`, `closed_at`), and `dq_flag` / `dq_reason`.
   - `02_create_dq_rules.sql`: Defines `dq_rules`, `dq_runs`, and `dq_run_tickets`.
   - `03_create_admin_config.sql`: Admin configuration overrides.
+  - `04_create_kb_chunks.sql`: Resolution agent knowledge base chunks (`kb_chunks`, pgvector + full-text index).
 - **ORM Alignment**:
   `backend/app/models/servicenow.py` mirrors `servicenow_tickets`.
   Legacy generic `tickets` table remains in `backend/app/models/ticket.py` for backward compatibility with JIRA/Mailbox data.

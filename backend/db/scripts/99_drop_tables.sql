@@ -2,6 +2,7 @@
 DROP TABLE IF EXISTS storms CASCADE;
 DROP TABLE IF EXISTS jira_syncs;
 DROP TABLE IF EXISTS jira_projects;
+DROP TABLE IF EXISTS kb_chunks;
 DROP TABLE IF EXISTS config_changes;
 DROP TABLE IF EXISTS config_overrides;
 DROP TABLE IF EXISTS dq_run_tickets;

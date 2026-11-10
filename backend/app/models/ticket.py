@@ -117,6 +117,7 @@ class Review(Base):
     agent: Mapped[str] = mapped_column(String(32), index=True)  # triage
     action: Mapped[str] = mapped_column(String(16))  # accepted, edited, rejected
     final_priority: Mapped[Optional[int]] = mapped_column(Integer)  # what the engineer decided; None if no priority applies
+    final_text: Mapped[Optional[str]] = mapped_column(Text)  # closure_quality: the notes the engineer settled on
     reason_code: Mapped[Optional[str]] = mapped_column(String(32))  # why the recommendation was changed
     note: Mapped[Optional[str]] = mapped_column(Text)
     reviewer: Mapped[str] = mapped_column(String(256))  # as given by the caller; not verified until there are logins

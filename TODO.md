@@ -13,7 +13,7 @@ Context: [backend/db/scripts/DQ_RULES_FEATURE.md](backend/db/scripts/DQ_RULES_FE
 | 7 | Synchronize ServiceNow ticket ingestion with DB schema & Excel upload API | DONE | 1, 3 | Complete |
 | 8 | Build Frontend UI for ServiceNow Excel Upload & Ingestion | TBD | 7 | Open |
 | 9 | Monitoring: API request tracing to Arize Phoenix (OpenTelemetry) | DONE | none | Complete |
-| 10 | Monitoring: LLM call tracing via `openinference-instrumentation-anthropic` | TBD | 9 | Open |
+| 10 | Monitoring: LLM call tracing via `openinference-instrumentation-anthropic` | DONE | 9 | Complete |
 
 ## 1. Review DB scripts and feature notes
 - Review [01_create_servicenow_tickets.sql](db/scripts/01_create_servicenow_tickets.sql) and [02_create_dq_rules.sql](db/scripts/02_create_dq_rules.sql). Run them on a dev database to verify.

@@ -1,7 +1,8 @@
-"""OpenTelemetry request tracing, exported to Arize Phoenix when PHOENIX_ENABLED is set.
+"""OpenTelemetry request and LLM call tracing, exported to Arize Phoenix when PHOENIX_ENABLED is set.
 
-Only HTTP metadata is traced (method, route, status, latency). Request and response bodies are never attached to
-spans, so PII stays out of the collector.
+Request spans carry only HTTP metadata (method, route, status, latency). LLM spans carry the prompt and response sent to
+the model. Prompts hold ticket text already redacted by Masker, and responses hold placeholders, so raw PII stays out
+of the collector.
 """
 
 import logging
@@ -25,6 +26,7 @@ def setup_telemetry(app: FastAPI) -> None:
     if not settings.PHOENIX_ENABLED or _provider is not None:
         return
     try:
+        from openinference.instrumentation.anthropic import AnthropicInstrumentor
         from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
         from opentelemetry.sdk.resources import Resource
@@ -38,6 +40,7 @@ def setup_telemetry(app: FastAPI) -> None:
         provider = TracerProvider(resource=resource)
         provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=settings.PHOENIX_COLLECTOR_ENDPOINT)))
         FastAPIInstrumentor.instrument_app(app, tracer_provider=provider, excluded_urls="health")
+        AnthropicInstrumentor().instrument(tracer_provider=provider)
         _provider = provider
         logger.info(f"Phoenix tracing enabled: {settings.PHOENIX_COLLECTOR_ENDPOINT}")
     except Exception:
@@ -50,6 +53,9 @@ def shutdown_telemetry() -> None:
     if _provider is None:
         return
     try:
+        from openinference.instrumentation.anthropic import AnthropicInstrumentor
+
+        AnthropicInstrumentor().uninstrument()
         _provider.shutdown()
     finally:
         _provider = None

@@ -130,6 +130,9 @@ Database settings are configured in [`app/core/config.py`](file:///Users/bhimk/P
 | `DB_POOL_PRE_PING`| Validates connection health before checkout | `True` |
 | `DB_ECHO` | Print SQL statements to log (debug only) | `False` |
 | `PII_MASKING_ENABLED` | Redact personal information before DB persistence | `True` |
+| `PHOENIX_ENABLED` | Export API request traces to Arize Phoenix (see section 8) | `False` |
+| `PHOENIX_COLLECTOR_ENDPOINT` | Phoenix OTLP/HTTP traces endpoint | `http://localhost:6006/v1/traces` |
+| `PHOENIX_PROJECT_NAME` | Project name shown in Phoenix | `ams-incident-management` |
 
 ---
 
@@ -169,9 +172,10 @@ Runs over tickets with `pipeline_status = reviewed`; writes one `agent_runs` row
 
 ## 8. Monitoring (Phoenix)
 
-API request traces (method, route, status, latency, `http.request_id`) go to Arize Phoenix over OpenTelemetry. Off by default.
+API request traces (method, route, status, latency, `http.request_id`) and LLM call traces (model, prompt, response, tokens, latency) go to Arize Phoenix over OpenTelemetry. Off by default.
 
 - **Enable**: set `PHOENIX_ENABLED=true` in `backend/.env` (`PHOENIX_COLLECTOR_ENDPOINT`, `PHOENIX_PROJECT_NAME` optional). Not admin-editable.
-- **Collector**: `docker compose up phoenix`, then open the UI at http://localhost:6006.
-- **Code**: `app/core/telemetry.py`, wired in `app/main.py`. Setup never stops startup; failures are logged as warnings.
-- **Privacy**: HTTP metadata only. Request and response bodies are never attached to spans, so PII is not exported.
+- **Collector**: `docker compose up phoenix`, then open the UI at http://localhost:6006. Without Docker: `pip install arize-phoenix`, then `phoenix serve` (same port and endpoint).
+- **Export**: spans are batched, so they appear in the UI a few seconds after the request. Health check URLs are excluded.
+- **Code**: `app/core/telemetry.py`, wired in `app/main.py`. LLM spans come from `openinference-instrumentation-anthropic`, which patches the Anthropic SDK in the same setup. Setup never stops startup; failures are logged as warnings.
+- **Privacy**: request spans hold HTTP metadata only. LLM spans hold the prompt and response, but the prompt is built from ticket text that `Masker` already redacted, and the response holds placeholders (`<PERSON_n>`) because unmasking happens after the call. So raw PII is not exported.

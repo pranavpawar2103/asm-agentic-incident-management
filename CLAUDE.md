@@ -71,3 +71,4 @@ Always consult these documents before modifying or adding code:
   - `POST /api/v1/data-quality/rules`: Manage custom DQ rules
   - `POST /api/v1/data-quality/apply`: Evaluate rules against existing or incoming tickets
   - `POST /api/v1/data-quality/revert/{run_id}`: Revert flagged tickets from a previous run
+- **Monitoring (Phoenix)**: Optional OpenTelemetry API request traces to Arize Phoenix, off by default (`PHOENIX_ENABLED`; see `backend/DEVELOPMENT.md` section 8).

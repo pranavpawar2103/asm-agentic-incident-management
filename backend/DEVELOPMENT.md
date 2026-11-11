@@ -164,3 +164,14 @@ Runs over tickets with `pipeline_status = reviewed`; writes one `agent_runs` row
 - **ReAct loop**: `resolve()` searches, reads up to 5 excerpts per search, and finishes with `ResolutionAnswer`. Max 4 extra searches. Citations not in the excerpts are sent back to the model (`react.py`, `answer.py`). Rules R1–R3 are in `resolution_react` in `prompts.yaml`.
 - **Query vectors**: the endpoint runs full-text only until an `Embedder` is wired in (`run_resolution(embedder=...)`).
 - **Model errors**: a ticket whose model call fails gets no `agent_runs` row and is retried on the next run.
+
+---
+
+## 8. Monitoring (Phoenix)
+
+API request traces (method, route, status, latency, `http.request_id`) go to Arize Phoenix over OpenTelemetry. Off by default.
+
+- **Enable**: set `PHOENIX_ENABLED=true` in `backend/.env` (`PHOENIX_COLLECTOR_ENDPOINT`, `PHOENIX_PROJECT_NAME` optional). Not admin-editable.
+- **Collector**: `docker compose up phoenix`, then open the UI at http://localhost:6006.
+- **Code**: `app/core/telemetry.py`, wired in `app/main.py`. Setup never stops startup; failures are logged as warnings.
+- **Privacy**: HTTP metadata only. Request and response bodies are never attached to spans, so PII is not exported.

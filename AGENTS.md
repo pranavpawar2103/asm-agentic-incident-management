@@ -45,7 +45,7 @@ flowchart LR
 │   │   │   ├── router.py          # Master router for /api/v1
 │   │   │   └── endpoints/         # servicenow, tickets, data_quality, admin, health
 │   │   ├── agents/                # Agent logic (data_quality, etc.)
-│   │   ├── core/                  # Settings, config, logging, exceptions
+│   │   ├── core/                  # Settings, config, logging, exceptions, telemetry (Phoenix tracing)
 │   │   ├── db/                    # Session factory (pure async asyncpg)
 │   │   ├── models/                # SQLAlchemy 2.0 ORM models (servicenow, ticket, dq)
 │   │   ├── privacy/               # Presidio PII masking & unmasking
@@ -66,6 +66,7 @@ flowchart LR
 ├── .agents/                       # Antigravity/Agentic rules and skills
 │   ├── rules/                     # karpathy-guidelines.md, development-references.md
 │   └── skills/                    # dq-rules-workflow, etc.
+├── docker-compose.yml             # Services: backend (FastAPI) and phoenix (trace UI on :6006)
 ├── CLAUDE.md                      # Claude instructions & fast reference
 ├── GEMINI.md                      # Gemini & Antigravity instructions
 └── TODO.md                        # Master task list & feature status

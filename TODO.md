@@ -12,6 +12,8 @@ Context: [backend/db/scripts/DQ_RULES_FEATURE.md](backend/db/scripts/DQ_RULES_FE
 | 6 | Add schemas for different ticket sources as well | TBD | none | Open |
 | 7 | Synchronize ServiceNow ticket ingestion with DB schema & Excel upload API | DONE | 1, 3 | Complete |
 | 8 | Build Frontend UI for ServiceNow Excel Upload & Ingestion | TBD | 7 | Open |
+| 9 | Monitoring: API request tracing to Arize Phoenix (OpenTelemetry) | DONE | none | Complete |
+| 10 | Monitoring: LLM call tracing via `openinference-instrumentation-anthropic` | DONE | 9 | Complete |
 
 ## 1. Review DB scripts and feature notes
 - Review [01_create_servicenow_tickets.sql](db/scripts/01_create_servicenow_tickets.sql) and [02_create_dq_rules.sql](db/scripts/02_create_dq_rules.sql). Run them on a dev database to verify.
@@ -58,3 +60,8 @@ Context: [backend/db/scripts/DQ_RULES_FEATURE.md](backend/db/scripts/DQ_RULES_FE
 - Build ServiceNow ticket upload component (file input or drag-and-drop using shadcn/ui).
 - Render upload results summary (processed, created, updated, skipped counts).
 - Verify with `npm run build` in `frontend/`.
+
+## 10. LLM call tracing via `openinference-instrumentation-anthropic`
+- Add LLM call spans (prompts, model, tokens, latency) on top of the API request traces from item 9, sent to the same Phoenix project.
+- Keep PII out of spans: confirm what is attached before enabling, since prompts contain ticket text (already masked by `Masker`).
+- Done when: a resolution or DQ model call shows as a span in Phoenix, and tracing stays off unless `PHOENIX_ENABLED=true`.

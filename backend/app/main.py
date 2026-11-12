@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.exceptions import global_exception_handler
 from app.core.logging import setup_logging
 from app.core.middleware import RequestLoggingMiddleware
+from app.core.telemetry import setup_telemetry, shutdown_telemetry
 from app.db.session import AsyncSessionLocal, close_db
 
 logger = logging.getLogger("app.main")
@@ -28,6 +29,7 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         logger.info(f"Shutting down {settings.PROJECT_NAME}")
+        shutdown_telemetry()
         await close_db()
 
 
@@ -59,6 +61,9 @@ def create_application() -> FastAPI:
 
     # Routers
     app.include_router(api_router, prefix=settings.API_V1_STR)
+
+    # Request tracing to Phoenix (no-op unless PHOENIX_ENABLED); instruments the app after all routes are added
+    setup_telemetry(app)
 
     return app
 

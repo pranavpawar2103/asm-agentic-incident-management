@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     AWS_REGION: str = "ca-central-1"  # bedrock only; must be in ALLOWED_AWS_REGIONS
     ANTHROPIC_API_KEY: SecretStr = SecretStr("")  # empty = the SDK's own lookup (environment, `ant auth login`)
 
+    # Monitoring: API request traces to Arize Phoenix (app/core/telemetry.py)
+    PHOENIX_ENABLED: bool = False
+    PHOENIX_COLLECTOR_ENDPOINT: str = "http://localhost:6006/v1/traces"
+    PHOENIX_PROJECT_NAME: str = "ams-incident-management"
+
     # Resolution agent: knowledge base chunking and retrieval index (see backend/db/scripts/04_create_kb_chunks.sql)
     EMBEDDING_MODEL: str = "google/embeddinggemma-300m"  # embeddings are generated outside this app; recorded per row
     EMBEDDING_DIM: int = Field(256, ge=32, le=1024)  # Matryoshka truncation; must match kb_chunks.embedding

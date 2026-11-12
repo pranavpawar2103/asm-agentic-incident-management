@@ -14,3 +14,13 @@ match:
 stopwords: [the, and, for, with, that, this, from, was, were, has, have, had, not, but, are, can, its, our, all, any,
             now, then, when, after, before, user, users, ticket, issue, problem, followed, asked, checked, confirmed,
             test, tested, fixed, working, works, still, also, into, per, via]
+
+# Drafts for gaps. Only an application in the knowledge base gets a draft; a request or something outside the knowledge
+# base (a network or laptop problem) is recorded, not drafted. An expert approves every draft before it counts.
+drafts:
+  similar_text: 0.5   # a new gap joins an open draft for the same application when this share of words is shared
+
+# Repeat issues: the same article (or the same draft) closed this many times within the window -> suggest a problem record
+problems:
+  min_cases: 3
+  window_days: 30

@@ -16,6 +16,9 @@ class KnowledgeConfig:
     margin: float
     candidates: int
     stopwords: frozenset[str]
+    draft_similar: float  # share of words a new gap must share with an open draft to join it
+    problem_min_cases: int
+    problem_window_days: int
 
 
 def get_config() -> KnowledgeConfig:
@@ -32,9 +35,16 @@ def _build(version: int) -> KnowledgeConfig:
         margin=doc["match"]["margin"],
         candidates=doc["match"]["candidates"],
         stopwords=frozenset(str(w).casefold() for w in doc["stopwords"]),
+        draft_similar=doc["drafts"]["similar_text"],
+        problem_min_cases=doc["problems"]["min_cases"],
+        problem_window_days=doc["problems"]["window_days"],
     )
     if not 0 < config.min_score <= 1 or config.margin < 1 or config.candidates < 1:
         raise ValueError("match.min_score must be between 0 and 1, match.margin at least 1 and match.candidates at least 1")
+    if not 0 < config.draft_similar <= 1 or config.problem_min_cases < 2 or config.problem_window_days < 1:
+        raise ValueError(
+            "drafts.similar_text must be between 0 and 1, problems.min_cases at least 2 and problems.window_days at least 1"
+        )
     return config
 
 

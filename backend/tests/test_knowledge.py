@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.agents.knowledge_builder.articles import articles, articles_version, codes
+from app.agents.knowledge_builder.drafting import KBDraftAnswer
 from app.agents.knowledge_builder.matching import evaluate
 from app.agents.knowledge_builder.model_check import KBMatch, checked
 from app.core import registry
@@ -195,10 +196,14 @@ def test_coverage_counts_matched_and_gap_cases_and_unused_articles(session, prov
     gap = ticket(2, ("New joiner missing from payroll", "Employee E15775 is not in the payroll register."),
                  "The sync skipped the employee. Triggered a manual sync and the employee now appears in the register.")
     passed(session, matched, gap)
-    provider(_reply(KBMatch(article=None, evidence=None, reason="no article covers it")))
+    draft = KBDraftAnswer(kind="known_issue", title="New joiner missing from the payroll register",
+                          symptoms=["A new joiner is not in the payroll register."], root_cause="The sync skipped the employee.",
+                          resolution_steps=["Trigger a manual sync."], escalation="[expert to add]", reason="A known issue")
+    provider(_reply(KBMatch(article=None, evidence=None, reason="no article covers it")), _reply(draft))
     run_knowledge(session)
 
     payroll = next(r for r in coverage.coverage(session) if r.application == "PayrollPro")
+    assert (payroll.drafts_waiting, payroll.outside_kb) == (1, 0)
     assert (payroll.articles, payroll.cases, payroll.matched, payroll.gap, payroll.covered_share) == (5, 2, 1, 1, 0.5)
     assert "KB-PAY-002" not in payroll.unused_articles and len(payroll.unused_articles) == 4
     assert next(r for r in coverage.coverage(session) if r.application == "OrderHub").cases == 0  # every application is listed
@@ -209,7 +214,7 @@ def test_coverage_counts_matched_and_gap_cases_and_unused_articles(session, prov
 
 async def test_knowledge_endpoints(client):
     await client.post("/api/v1/ingest")
-    empty = {"evaluated": 0, "skipped": 0, "model_errors": 0, "by_status": {}}
+    empty = {"evaluated": 0, "skipped": 0, "model_errors": 0, "by_status": {}, "drafts": {}, "open_problems": 0}
     assert (await client.post("/api/v1/knowledge/run")).json() == empty
     assert (await client.get("/api/v1/knowledge/cases")).json() == []
     assert (await client.get("/api/v1/knowledge/cases", params={"match_status": "nope"})).status_code == 422

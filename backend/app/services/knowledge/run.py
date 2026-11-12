@@ -14,12 +14,14 @@ from app.agents.knowledge_builder.matching import evaluate
 from app.agents.knowledge_builder.model_check import assess_match, checked, kb_match_spec
 from app.core.config import settings
 from app.llm import ModelError
-from app.models.knowledge import ResolvedCase
+from app.models.knowledge import ProblemCandidate, ResolvedCase
 from app.models.ticket import AgentRun, Review, Ticket
 from app.privacy.masking import Masker
 from app.services.closure.run import AGENT as CLOSURE_AGENT
 from app.services.closure.run import RESOLVED
 from app.services.data_quality import OutageBreaker, fingerprint, last_run
+from app.services.knowledge.drafts import draft_for_gap
+from app.services.knowledge.problems import detect_problems
 
 logger = logging.getLogger("app.knowledge")
 
@@ -32,6 +34,8 @@ class RunResult:
     skipped: int = 0
     model_errors: int = 0
     by_status: Counter = field(default_factory=Counter)
+    drafts: Counter = field(default_factory=Counter)  # what happened to each gap: created, joined, none, ...
+    problems: int = 0  # open repeat-issue suggestions after this run
 
 
 def _input_hash(ticket: Ticket, notes: str) -> str:
@@ -90,7 +94,8 @@ def _passed(db: Session, tickets: list[Ticket]) -> dict[str, tuple[str, AgentRun
     return passed
 
 
-def _save(db: Session, ticket: Ticket, notes: str, check: AgentRun, status: str, article: str | None, method: str | None) -> None:
+def _save(db: Session, ticket: Ticket, notes: str, check: AgentRun, status: str, article: str | None,
+          method: str | None) -> ResolvedCase:
     """Store the case with names masked. The quotes are the engineer's own words, so they are kept only for unedited notes."""
     masker = Masker(known_names=[ticket.reporter_name, ticket.assignee], known_emails=[ticket.reporter_email])
     quotes = check.output.get("quotes") if notes == (ticket.resolution_notes or "").strip() else None
@@ -102,7 +107,10 @@ def _save(db: Session, ticket: Ticket, notes: str, check: AgentRun, status: str,
         (str(masker.mask(quotes[p])) if quotes and quotes.get(p) else None) for p in ("cause", "action", "check")
     )
     case.match_status, case.kb_article_id, case.match_method = status, article, method
+    if status != "gap":
+        case.gap_kind, case.draft_id = None, None
     db.add(case)
+    return case
 
 
 def run_knowledge(db: Session) -> RunResult:
@@ -122,22 +130,28 @@ def run_knowledge(db: Session) -> RunResult:
             continue
 
         status, article, method, output, error = match_case(ticket, notes, use_model)
-        retry = status == "uncertain" and settings.LLM_ENABLED  # the model should have judged it: try again next run
+        case = _save(db, ticket, notes, check, status, article, method)
+        if status == "gap":
+            output["draft"], error = draft_for_gap(db, ticket, case, notes, use_model)
+            result.drafts[output["draft"]["draft"]] += 1
+        # the model should have judged the case, or written the draft: try again next run
+        retry = (status == "uncertain" and settings.LLM_ENABLED) or output.get("draft", {}).get("draft") == "failed"
         db.add(AgentRun(ticket_id=ticket.id, agent=AGENT, verdict=status, output=output,
                         input_hash=None if retry else _input_hash(ticket, notes)))
-        _save(db, ticket, notes, check, status, article, method)
         if error:
             result.model_errors += 1
             logger.warning(f"Knowledge Builder: model stage failed for {ticket.id}: {error!r}")
-        if use_model and output["ai"] in ("used", "failed") and breaker.record(error):
+        if use_model and (output["ai"] in ("used", "failed") or "audit" in output.get("draft", {})) and breaker.record(error):
             logger.error(f"Knowledge Builder: model unavailable {breaker.in_a_row} times in a row; rules only for this run")
             use_model = False
         result.evaluated += 1
         result.by_status[status] += 1
+    detect_problems(db)
     db.commit()
+    result.problems = len(db.scalars(select(ProblemCandidate.id).where(ProblemCandidate.status == "open")).all())
 
     logger.info(
-        f"Knowledge Builder: evaluated={result.evaluated} skipped={result.skipped} "
-        f"model_errors={result.model_errors} by_status={dict(result.by_status)}"
+        f"Knowledge Builder: evaluated={result.evaluated} skipped={result.skipped} model_errors={result.model_errors} "
+        f"by_status={dict(result.by_status)} drafts={dict(result.drafts)} open_problems={result.problems}"
     )
     return result

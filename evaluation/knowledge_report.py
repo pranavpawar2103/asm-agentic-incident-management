@@ -67,7 +67,8 @@ def judge(items: list[tuple[Ticket, str, str, str]]) -> list[dict]:
     for ticket, notes, expected, kind in items:
         status, article, method, output, error = match_case(ticket, notes)
         out.append({"id": ticket.id, "kind": kind, "expected": expected, "status": status, "article": article,
-                    "method": method, "output": output, "error": error, "reason": output["reason"]})
+                    "method": method, "output": output, "error": error, "reason": output["reason"], "ticket": ticket,
+                    "notes": notes})
     return out
 
 
@@ -126,6 +127,41 @@ def model_report(real: list, kept: list, removed: list, reworded: list, none: li
     for i in every:
         if not right(i):
             print(f"  BAD {i['id']:<10} {i['kind']:<12} expected {i['expected']}, got {i['status']} {i['article'] or ''}  {i['reason']}")
+    draft_report([i for i in none if i["status"] == "gap"])
+
+
+EXPECTED_DRAFT = {"defect": "created", "request": "request", "out_of_scope": "outside_kb"}
+
+
+def draft_report(gaps: list[dict]) -> None:
+    """Draft an article for each gap, as the service does, and print every draft for a person to read."""
+    from app.agents.knowledge_builder.drafting import check_draft, draft_article, fields_of, markdown, people_of
+    from app.agents.knowledge_builder.matching import known_application
+
+    results, texts = [], []
+    for i in gaps:
+        ticket, app = i["ticket"], known_application(i["ticket"].application)
+        if app is None:
+            results.append((i, "outside_kb", [], None))
+            continue
+        answer, audit, hidden = draft_article([(ticket, i["notes"])], app)
+        if answer.kind != "known_issue":
+            results.append((i, answer.kind, [], audit))
+            continue
+        fields = fields_of(answer)
+        problems = check_draft(fields, f"{ticket.summary}\n{ticket.description}\n{i['notes']}", [*hidden, *people_of([ticket])])
+        results.append((i, "rejected_by_checks" if problems else "created", problems, audit))
+        texts.append(markdown(None, fields, [ticket.id]))
+
+    used = [a for *_, a in results if a]
+    cost_in = sum(a.input_tokens + a.cache_read_tokens + a.cache_write_tokens for a in used)
+    print(f"\nDrafts for the {len(gaps)} gaps ({len(used)} model calls, {cost_in} input tokens)")
+    print(f"  as expected                      {sum(outcome == EXPECTED_DRAFT[i['kind']] for i, outcome, _, _ in results)} / {len(results)}")
+    for i, outcome, problems, _ in results:
+        mark = "ok " if outcome == EXPECTED_DRAFT[i["kind"]] else "BAD"
+        print(f"  {mark} {i['id']:<8} {i['kind']:<12} -> {outcome}{'  ' + '; '.join(problems) if problems else ''}")
+    for text in texts:
+        print("\n" + text)
 
 
 if __name__ == "__main__":

@@ -77,6 +77,9 @@ class Settings(BaseSettings):
     # Closure Quality run
     CLOSURE_OUTAGE_BREAKER: int = Field(5, ge=1)  # same, for the Closure Quality model stage
 
+    # Knowledge Builder run
+    KNOWLEDGE_OUTAGE_BREAKER: int = Field(5, ge=1)  # same, for the Knowledge Builder model stage
+
     # Admin API. Unset key = admin endpoints switched off. Set both in the environment only, never through the API.
     ADMIN_API_KEY: str = ""
     ALLOWED_AWS_REGIONS: list[str] = ["ca-central-1"]
@@ -105,6 +108,7 @@ ADMIN_EDITABLE = frozenset({
     "DQ_OUTAGE_BREAKER",
     "TRIAGE_OUTAGE_BREAKER",
     "CLOSURE_OUTAGE_BREAKER",
+    "KNOWLEDGE_OUTAGE_BREAKER",
 })
 
 settings = Settings()

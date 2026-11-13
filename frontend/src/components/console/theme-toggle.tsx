@@ -1,8 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { Moon } from "lucide-react";
-import { cn } from "cn";
+import { Moon, Sun } from "lucide-react";
 
 function subscribe(onChange: () => void) {
   const observer = new MutationObserver(onChange);
@@ -12,7 +11,7 @@ function subscribe(onChange: () => void) {
 
 const isDark = () => document.documentElement.classList.contains("dark");
 
-export function ThemeToggle({ compact = false }: { compact?: boolean }) {
+export function ThemeToggle() {
   const dark = useSyncExternalStore(subscribe, isDark, () => false);
 
   function toggle() {
@@ -25,33 +24,16 @@ export function ThemeToggle({ compact = false }: { compact?: boolean }) {
     }
   }
 
+  const label = dark ? "Switch to light mode" : "Switch to dark mode";
   return (
     <button
       type="button"
-      role="switch"
-      aria-checked={dark}
-      aria-label="Dark mode"
-      title="Dark mode"
+      aria-label={label}
+      title={label}
       onClick={toggle}
-      className="flex h-8 w-full items-center gap-2 rounded-md px-2.5 text-[13px] font-medium text-muted-foreground transition-colors duration-[80ms] hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
+      className="grid size-11 shrink-0 place-items-center rounded-full border border-border bg-card text-foreground transition-colors duration-[80ms] hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
     >
-      <Moon className="size-4 shrink-0" aria-hidden="true" />
-      <span className={cn("flex-1 text-left", compact && "md:max-lg:sr-only")}>Dark mode</span>
-      <span
-        aria-hidden="true"
-        className={cn(
-          "relative h-4 w-7 shrink-0 rounded-full border transition-colors duration-[80ms]",
-          dark ? "border-foreground bg-foreground" : "border-input bg-card",
-          compact && "md:max-lg:hidden"
-        )}
-      >
-        <span
-          className={cn(
-            "absolute top-0.5 size-2.5 rounded-full transition-[left] duration-[80ms]",
-            dark ? "left-3.5 bg-background" : "left-0.5 bg-input"
-          )}
-        />
-      </span>
+      {dark ? <Sun className="size-5" aria-hidden="true" /> : <Moon className="size-5" aria-hidden="true" />}
     </button>
   );
 }

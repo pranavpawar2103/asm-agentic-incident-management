@@ -5,6 +5,8 @@ import { AppShell } from "@/components/console/app-shell";
 import { PageHeader } from "@/components/console/page-header";
 import { ListRow } from "@/components/console/list-row";
 import { StatTile } from "@/components/console/stat-tile";
+import { STAGES } from "@/components/console/dashboard";
+import { apiClient } from "@/lib/api-client";
 import { ticketService } from "@/services/ticket-service";
 import { ServiceNowTicket } from "@/types/servicenow";
 import { Card } from "@/components/ui/card";
@@ -31,11 +33,18 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { PriorityChip } from "@/components/console/priority-chip";
+import { useViewAs } from "@/lib/view-as";
+
+// The reporter's name is masked at ingest; a placeholder like <PERSON_1> says nothing in a list.
+const masked = (v?: string | null) => !!v && /^<[A-Z_]+_\d+>$/.test(v);
+
+const STAGE_WORDS = Object.fromEntries(STAGES);
 
 const selectClass =
   "h-8 w-full rounded-lg border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 export default function TicketsPage() {
+  const admin = useViewAs() === "admin";
   const [tickets, setTickets] = useState<ServiceNowTicket[]>([]);
   const [totalCount, setTotalCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
@@ -47,6 +56,8 @@ export default function TicketsPage() {
   const [dqFilter, setDqFilter] = useState<string>("all"); // 'all', 'flagged', 'clean'
   const [statusFilter, setStatusFilter] = useState<string>("all"); // 'all', 'open', 'closed'
   const [selectedTicket, setSelectedTicket] = useState<ServiceNowTicket | null>(null);
+  // What the agents made of each open ticket: its stage and the priority in force (decided, else recommended).
+  const [agents, setAgents] = useState<Record<string, { stage: string; priority: number | null }>>({});
 
   // Pagination
   const [page, setPage] = useState<number>(1);
@@ -57,10 +68,13 @@ export default function TicketsPage() {
     setError(null);
     try {
       const data = await ticketService.getTickets({
-        limit: 100, // fetch recent batch for client-side fluid filtering
+        limit: 500, // the most the API returns; filtering is client-side
       });
       setTickets(data.items);
       setTotalCount(data.total);
+      apiClient<{ tickets: { id: string; stage: string; priority: number | null }[] }>("/personas/board")
+        .then((board) => setAgents(Object.fromEntries(board.tickets.map((t) => [t.id, t]))))
+        .catch(() => setAgents({})); // the list still works without the agents' view
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load ServiceNow tickets";
       setError(msg);
@@ -128,17 +142,19 @@ export default function TicketsPage() {
     <AppShell>
       <PageHeader
         title="All tickets"
-        context="ServiceNow incidents ingested into the pipeline, with PII masked at ingest."
+        context="Every ticket from ServiceNow sheets and Jira, with personal details masked on the way in."
         actions={
           <>
             <Button variant="secondary" onClick={fetchTickets} disabled={loading}>
               <RefreshCw className={loading ? "animate-spin" : ""} />
               Refresh
             </Button>
-            <Button render={<Link href="/dq-rules" />} nativeButton={false}>
-              <ShieldCheck />
-              Run data quality rules
-            </Button>
+            {admin && (
+              <Button render={<Link href="/dq-rules" />} nativeButton={false}>
+                <ShieldCheck />
+                Open the rule builder
+              </Button>
+            )}
           </>
         }
       />
@@ -146,7 +162,7 @@ export default function TicketsPage() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatTile variant="primary" label="Ingested tickets" value={totalCount} />
         <StatTile label="Clean" value={cleanCount} window={`of ${tickets.length} loaded`} />
-        <StatTile label="Flagged by data quality" value={flaggedCount} window={`of ${tickets.length} loaded`} />
+        <StatTile label="Flagged by the rule builder" value={flaggedCount} window={`of ${tickets.length} loaded`} />
         <StatTile label="Open" value={openCount} window={`of ${tickets.length} loaded`} />
       </div>
 
@@ -204,7 +220,7 @@ export default function TicketsPage() {
               }}
               className={selectClass}
             >
-              <option value="all">All DQ statuses</option>
+              <option value="all">Flagged or clean</option>
               <option value="clean">Clean only</option>
               <option value="flagged">Flagged only</option>
             </select>
@@ -230,7 +246,7 @@ export default function TicketsPage() {
           {loading ? (
             <li className="flex items-center justify-center gap-2 px-4 py-10 text-muted-foreground">
               <RefreshCw className="size-4 animate-spin" aria-hidden="true" />
-              Loading ServiceNow incidents…
+              Loading tickets…
             </li>
           ) : paginatedTickets.length === 0 ? (
             <li className="px-4 py-10 text-center text-muted-foreground">
@@ -240,21 +256,29 @@ export default function TicketsPage() {
             paginatedTickets.map((ticket) => (
               <ListRow
                 key={ticket.ticket_id}
-                lead={<PriorityChip priority={ticket.priority} />}
-                itemKey={ticket.ticket_id}
+                lead={<PriorityChip priority={agents[ticket.ticket_id]?.priority ?? ticket.priority} />}
+                itemKey={
+                  <Link href={`/tickets/${encodeURIComponent(ticket.ticket_id)}`} className="underline-offset-4 hover:underline">
+                    {ticket.ticket_id}
+                  </Link>
+                }
                 title={ticket.short_description || "No short description"}
                 meta={[
                   ticket.service || "No service",
-                  ticket.caller || "Unknown caller",
+                  masked(ticket.caller) ? null : ticket.caller || "Unknown caller",
                   ticket.priority || "Unassigned priority",
                   ticket.closed_at ? "Closed" : "Open",
-                ].join(" · ")}
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
                 trailing={
                   ticket.dq_flag ? (
                     <span className="inline-flex items-center gap-1.5 text-foreground">
                       <AlertTriangle className="size-4" aria-hidden="true" />
                       Flagged
                     </span>
+                  ) : agents[ticket.ticket_id] ? (
+                    <span>{STAGE_WORDS[agents[ticket.ticket_id].stage] ?? agents[ticket.ticket_id].stage}</span>
                   ) : (
                     <span className="inline-flex items-center gap-1.5">
                       <CheckCircle2 className="size-4" aria-hidden="true" />
@@ -305,12 +329,14 @@ export default function TicketsPage() {
         </div>
       </Card>
 
-      <nav aria-label="Pipeline" className="mt-8 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
-        <Button variant="secondary" render={<Link href="/dq-rules" />} nativeButton={false}>
-          Next: Data Quality
-          <ArrowRight />
-        </Button>
-      </nav>
+      {admin && (
+        <nav aria-label="Pipeline" className="mt-8 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
+          <Button variant="secondary" render={<Link href="/dq-rules" />} nativeButton={false}>
+            Next: Rule builder
+            <ArrowRight />
+          </Button>
+        </nav>
+      )}
 
       {selectedTicket && (
         <Dialog open={!!selectedTicket} onOpenChange={(open) => !open && setSelectedTicket(null)}>
@@ -319,7 +345,7 @@ export default function TicketsPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Badge className="font-mono">{selectedTicket.ticket_id}</Badge>
                 <Badge variant={selectedTicket.dq_flag ? "destructive" : "default"}>
-                  {selectedTicket.dq_flag ? "DQ flagged" : "DQ clean"}
+                  {selectedTicket.dq_flag ? "Flagged by the rule builder" : "Clean"}
                 </Badge>
                 {selectedTicket.service && <Badge>{selectedTicket.service}</Badge>}
               </div>
@@ -327,7 +353,7 @@ export default function TicketsPage() {
                 {selectedTicket.short_description || "ServiceNow incident detail"}
               </DialogTitle>
               <DialogDescription>
-                Opened {selectedTicket.opened_at ? new Date(selectedTicket.opened_at).toLocaleString() : "unknown"} · Caller: {selectedTicket.caller || "N/A"}
+                Opened {selectedTicket.opened_at ? new Date(selectedTicket.opened_at).toLocaleString() : "unknown"} · Caller: {masked(selectedTicket.caller) ? "masked" : selectedTicket.caller || "N/A"}
               </DialogDescription>
             </DialogHeader>
 
@@ -384,9 +410,14 @@ export default function TicketsPage() {
               <span className="text-xs text-muted-foreground">
                 DB record: <code className="font-mono text-foreground">{selectedTicket.ticket_id}</code>
               </span>
-              <Button variant="secondary" onClick={() => setSelectedTicket(null)}>
-                Close
-              </Button>
+              <div className="flex gap-2">
+                <Button render={<Link href={`/tickets/${encodeURIComponent(selectedTicket.ticket_id)}`} />} nativeButton={false}>
+                  Open ticket
+                </Button>
+                <Button variant="secondary" onClick={() => setSelectedTicket(null)}>
+                  Close
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>

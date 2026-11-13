@@ -3,35 +3,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/console/app-shell";
 import { PageHeader } from "@/components/console/page-header";
-import { ListRow } from "@/components/console/list-row";
+import { SyncHistory, SyncInterval } from "@/components/console/sync-controls";
+import { SectionHead, Status, SyncHistoryRow } from "@/components/console/sync-parts";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { jiraService } from "@/services/jira-service";
 import { JiraConnection, JiraProject, JiraSync } from "@/types/jira";
-import { CircleCheck, RefreshCw, TriangleAlert } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 const message = (e: unknown, fallback: string) => (e instanceof Error ? e.message : fallback);
-
-function Status({ ok, children }: { ok: boolean; children: React.ReactNode }) {
-  const Icon = ok ? CircleCheck : TriangleAlert;
-  return (
-    <span className="inline-flex items-center gap-1.5 text-foreground">
-      <Icon className="size-4 shrink-0" aria-hidden="true" />
-      {children}
-    </span>
-  );
-}
-
-function SectionHead({ title, children }: { title: string; children?: React.ReactNode }) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-      <h2 className="text-sm font-semibold">{title}</h2>
-      {children}
-    </div>
-  );
-}
 
 /** Admin: Jira connection, which projects to pull, and sync history. Read-only towards Jira. */
 export default function JiraSettingsPage() {
@@ -123,7 +105,11 @@ export default function JiraSettingsPage() {
     <AppShell>
       <PageHeader
         title="Jira"
-        context="Pull tickets from Jira into the ticket list. Nothing is written back to Jira."
+        context={`Pull tickets from Jira into the ticket list. New open tickets go through Data Quality, then Triage. ${
+          conn?.write_back
+            ? "The agents comment, label and set the priority on the Jira issue; what a person sets in Jira stays final."
+            : "Nothing is written back to Jira (JIRA_WRITE_BACK is off)."
+        }`}
         actions={
           <Button variant="secondary" onClick={testConnection} disabled={testing}>
             {testing ? "Testing…" : "Test connection"}
@@ -222,41 +208,28 @@ export default function JiraSettingsPage() {
             {syncing ? "Syncing…" : "Sync now"}
           </Button>
         </SectionHead>
-        <p className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
-          {conn?.sync_minutes
-            ? `Also syncs automatically every ${conn.sync_minutes} minutes.`
-            : "Automatic sync is off. Set JIRA_SYNC_MINUTES in backend/.env to turn it on."}
-          {dirty && " Save your project changes before syncing."}
-        </p>
+        <SyncInterval
+          settingKey="JIRA_SYNC_MINUTES"
+          minutes={conn?.sync_minutes}
+          onSaved={(sync_minutes) => setConn((c) => c && { ...c, sync_minutes })}
+        >
+          A scheduled sync pulls only what changed.{dirty && " Save your project changes before syncing."}
+        </SyncInterval>
         {syncError && (
           <Alert variant="destructive" className="m-4 w-auto">
             <AlertDescription>{syncError}</AlertDescription>
           </Alert>
         )}
-        {!syncs ? (
-          <p className="px-4 py-6 text-muted-foreground">Loading sync history…</p>
-        ) : syncs.length === 0 ? (
-          <p className="px-4 py-6 text-muted-foreground">No syncs yet. Pick your projects, save, then select Sync now.</p>
-        ) : (
-          <ul role="list">
-            {syncs.map((s) => (
-              <ListRow
-                key={s.id}
-                lead={s.error ? <TriangleAlert className="size-4" aria-hidden="true" /> : <CircleCheck className="size-4" aria-hidden="true" />}
-                itemKey={`#${s.id}`}
-                title={s.error ? `Failed: ${s.error}` : `Pulled ${s.pulled} · ${s.created} new · ${s.updated} updated`}
-                meta={[
-                  s.trigger === "manual" ? "Manual" : "Scheduled",
-                  s.projects || "No projects",
-                  new Date(s.started_at).toLocaleString(),
-                  s.finished_at && `took ${Math.max(0, Math.round((+new Date(s.finished_at) - +new Date(s.started_at)) / 1000))}s`,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              />
-            ))}
-          </ul>
-        )}
+        <SyncHistory runs={syncs} empty="No syncs yet. Pick your projects, save, then select Sync now." changed={(s) => s.pulled}>
+          {(s) => (
+            <SyncHistoryRow
+              key={s.id}
+              run={s}
+              summary={`Pulled ${s.pulled} · ${s.created} new · ${s.updated} updated${s.queued ? ` · ${s.queued} sent to the agents` : ""}`}
+              scope={s.projects || "No projects"}
+            />
+          )}
+        </SyncHistory>
       </Card>
     </AppShell>
   );

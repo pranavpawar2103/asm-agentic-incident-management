@@ -14,7 +14,7 @@ from app.core.exceptions import global_exception_handler
 from app.core.logging import setup_logging
 from app.core.middleware import RequestLoggingMiddleware
 from app.db.session import AsyncSessionLocal, close_db
-from app.services import jira
+from app.services import confluence, jira
 
 logger = logging.getLogger("app.main")
 
@@ -26,12 +26,13 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.PROJECT_NAME} [{settings.ENVIRONMENT}]")
     async with AsyncSessionLocal() as db:
         await db.run_sync(apply_overrides)  # admin changes survive a restart
-    scheduler = asyncio.create_task(jira.schedule_loop(AsyncSessionLocal)) if settings.JIRA_SYNC_MINUTES else None
+    # Always running: each loop reads its interval every minute, so an admin can turn a sync on or off without a restart
+    schedulers = [asyncio.create_task(loop(AsyncSessionLocal)) for loop in (jira.schedule_loop, confluence.schedule_loop)]
     try:
         yield
     finally:
-        if scheduler:
-            scheduler.cancel()
+        for task in schedulers:
+            task.cancel()
         logger.info(f"Shutting down {settings.PROJECT_NAME}")
         await close_db()
 

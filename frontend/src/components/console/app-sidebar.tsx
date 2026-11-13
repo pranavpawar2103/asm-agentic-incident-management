@@ -1,138 +1,131 @@
 "use client";
 
-import { useId } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
-  BookOpen,
-  FileCode2,
-  Home,
-  PanelLeftClose,
-  PanelLeftOpen,
-  PlugZap,
-  ShieldAlert,
-  ShieldCheck,
-  Ticket,
-  UserRound,
-  Users,
+  BookOpen, CheckCheck, CheckCircle2, ClipboardList, Database, FileText, History, LayoutDashboard,
+  ListChecks, Plug, ShieldCheck, SlidersHorizontal, Ticket, TrendingUp, TriangleAlert, Users, type LucideIcon,
 } from "lucide-react";
 import { cn } from "cn";
-import { ThemeToggle } from "@/components/console/theme-toggle";
-import { ROLES, ViewRole, setViewAs, useViewAs } from "@/lib/view-as";
+import { ROLES, useViewAs } from "@/lib/view-as";
+import { REVIEW_EVENT } from "@/components/console/review-actions";
+import { pipelineService } from "@/services/pipeline-service";
 
 type NavItem = {
   label: string;
   href: string;
-  icon: React.ComponentType<{ className?: string }>;
   step?: number;
   count?: number;
   match: (pathname: string) => boolean;
   children?: { label: string; href: string }[];
 };
 
+// Its count is the live review queue, filled in by the sidebar.
+const REVIEW: NavItem = { label: "Review queue", href: "/review", match: (p) => p.startsWith("/review") };
+
+const INCIDENTS: NavItem = { label: "Incidents", href: "/incidents", match: (p) => p.startsWith("/incidents") };
+
 const ADMIN_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Overview",
-    items: [{ label: "Home", href: "/", icon: Home, match: (p) => p === "/" }],
+    items: [{ label: "Home", href: "/", match: (p) => p === "/" },
+      INCIDENTS,
+      { label: "Trends", href: "/trends", match: (p) => p.startsWith("/trends") },
+    ],
   },
   {
     label: "Tickets",
     items: [
-      { label: "All tickets", href: "/tickets", icon: Ticket, match: (p) => p.startsWith("/tickets") },
-    ],
-  },
-  {
-    label: "Agents",
-    items: [
+      { label: "All tickets", href: "/tickets", match: (p) => p.startsWith("/tickets") },
+      REVIEW,
       {
-        label: "Data Quality",
+        label: "Rule builder",
         href: "/dq-rules",
-        icon: ShieldCheck,
-        step: 1,
         match: (p) => p.startsWith("/dq-rules"),
         children: [
           { label: "Rules", href: "/dq-rules" },
           { label: "Runs", href: "/dq-rules/execute" },
         ],
       },
-      { label: "Triage", href: "/triage", icon: ShieldAlert, step: 2, match: (p) => p.startsWith("/triage") },
-      { label: "Resolution", href: "/resolution", icon: BookOpen, step: 3, match: (p) => p.startsWith("/resolution") },
+    ],
+  },
+  {
+    label: "Agents",
+    items: [
+      { label: "Data Quality", href: "/agents/data-quality", step: 1, match: (p) => p.startsWith("/agents/data-quality") },
+      { label: "Triage", href: "/agents/triage", step: 2, match: (p) => p.startsWith("/agents/triage") },
+      { label: "Resolution", href: "/agents/resolution", step: 3, match: (p) => p.startsWith("/agents/resolution") },
+      { label: "Closure Quality", href: "/agents/closure", step: 4, match: (p) => p.startsWith("/agents/closure") },
     ],
   },
   {
     label: "Settings",
-    items: [{ label: "Jira", href: "/settings/jira", icon: PlugZap, match: (p) => p.startsWith("/settings/jira") }],
+    items: [
+      { label: "Jira", href: "/settings/jira", match: (p) => p.startsWith("/settings/jira") },
+      { label: "Confluence", href: "/settings/confluence", match: (p) => p.startsWith("/settings/confluence") },
+      { label: "Reference data", href: "/settings/reference", match: (p) => p.startsWith("/settings/reference") },
+      { label: "Change history", href: "/settings/history", match: (p) => p.startsWith("/settings/history") },
+    ],
   },
 ];
 
-const ALL_TICKETS: NavItem = { label: "All tickets", href: "/tickets", icon: Ticket, match: (p) => p.startsWith("/tickets") };
-
-const GROUPS_BY_ROLE: Record<ViewRole, { label: string; items: NavItem[] }[]> = {
-  admin: ADMIN_GROUPS,
-  lead: [
-    { label: "Team", items: [{ label: "Team queue", href: "/team", icon: Users, match: (p) => p.startsWith("/team") }] },
-    { label: "Tickets", items: [ALL_TICKETS] },
-  ],
-  engineer: [
-    { label: "My work", items: [{ label: "My tickets", href: "/my-tickets", icon: UserRound, match: (p) => p.startsWith("/my-tickets") }] },
-    { label: "Tickets", items: [ALL_TICKETS] },
-  ],
+const ICONS: Record<string, LucideIcon> = {
+  "/": LayoutDashboard, "/incidents": TriangleAlert, "/trends": TrendingUp, "/tickets": Ticket, "/review": CheckCircle2,
+  "/dq-rules": ListChecks, "/agents/data-quality": ShieldCheck, "/agents/triage": SlidersHorizontal,
+  "/agents/resolution": BookOpen, "/agents/closure": CheckCheck, "/settings/jira": Plug, "/settings/confluence": FileText,
+  "/settings/reference": Database, "/settings/history": History, "/team": Users, "/my-tickets": ClipboardList,
 };
 
+// Every item a persona's menu in lib/view-as.ts can name by href.
+const ITEMS: NavItem[] = [
+  ...ADMIN_GROUPS.flatMap((g) => g.items),
+  { label: "Overview", href: "/team", match: (p) => p.startsWith("/team") },
+  { label: "My worklist", href: "/my-tickets", match: (p) => p.startsWith("/my-tickets") },
+];
+
 const itemBase =
-  "relative flex h-8 items-center gap-2 rounded-md px-2.5 text-[13px] font-medium text-muted-foreground transition-colors duration-[80ms] hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none";
+  "relative flex h-10 items-center gap-2.5 rounded-lg px-3 text-sm font-medium text-sidebar-foreground transition-colors duration-[80ms] hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar focus-visible:outline-none";
 const itemActive =
-  "bg-selected font-semibold text-foreground hover:bg-selected before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-primary";
+  "bg-sidebar-accent font-semibold";
 
 interface AppSidebarProps {
-  /** Icon-only column between 768px and 1023px, unless expanded. */
-  compact?: boolean;
-  onToggleCompact?: () => void;
   /** Called after a link is followed (used to close the mobile menu). */
   onNavigate?: () => void;
   className?: string;
 }
 
-export function AppSidebar({ compact = false, onToggleCompact, onNavigate, className }: AppSidebarProps) {
+export function AppSidebar({ onNavigate, className }: AppSidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const role = useViewAs();
-  const viewAsId = useId();
   const roleInfo = ROLES.find((r) => r.value === role)!;
-  const hide = compact ? "md:max-lg:sr-only" : "";
+  const groups = roleInfo.nav
+    ? roleInfo.nav.map((g) => ({ label: g.label, items: g.items.map((href) => ITEMS.find((i) => i.href === href)!) }))
+    : ADMIN_GROUPS;
+
+  const [waiting, setWaiting] = useState<number>();
+  useEffect(() => {
+    const load = () =>
+      pipelineService
+        .reviewQueue()
+        .then((q) => setWaiting(q.length))
+        .catch(() => setWaiting(undefined)); // the link still works without the count
+    load();
+    window.addEventListener(REVIEW_EVENT, load);
+    return () => window.removeEventListener(REVIEW_EVENT, load);
+  }, [pathname]);
 
   return (
-    <nav aria-label="Main" className={cn("flex h-full flex-col gap-3 bg-sidebar p-3 text-sidebar-foreground", className)}>
-      <div className="flex items-center gap-2 px-1 py-0.5">
-        <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-foreground text-[13px] font-bold text-background">
-          A
-        </span>
-        <span className={cn("text-[13px] font-semibold", hide)}>AMS Agents</span>
-      </div>
-
-      {onToggleCompact && (
-        <button
-          type="button"
-          onClick={onToggleCompact}
-          aria-expanded={!compact}
-          aria-label={compact ? "Expand the sidebar" : "Collapse the sidebar"}
-          title={compact ? "Expand the sidebar" : "Collapse the sidebar"}
-          className={cn(itemBase, "hidden md:max-lg:flex")}
-        >
-          {compact ? <PanelLeftOpen className="size-4 shrink-0" /> : <PanelLeftClose className="size-4 shrink-0" />}
-          <span className={hide}>Collapse</span>
-        </button>
-      )}
-
-      <div className="flex flex-1 flex-col gap-4">
-        {GROUPS_BY_ROLE[role].map((group) => (
+    <nav aria-label="Pages" className={cn("flex flex-col gap-3 rounded-[20px] bg-sidebar p-3 text-sidebar-foreground", className)}>
+      <div className="-m-1 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-1">
+        {groups.map((group) => (
           <div key={group.label} className="flex flex-col gap-1">
-            <p className={cn("px-2.5 pb-1 text-xs font-medium text-muted-foreground", hide)}>{group.label}</p>
+            <p className="px-3 pb-1 pt-1 font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-sidebar-foreground/75">{group.label}</p>
             <ul className="flex flex-col gap-0.5">
               {group.items.map((item) => {
-                const Icon = item.icon;
                 const active = item.match(pathname);
                 const exact = pathname === item.href;
+                const count = item === REVIEW ? waiting : item.count;
                 return (
                   <li key={item.href}>
                     <Link
@@ -143,17 +136,16 @@ export function AppSidebar({ compact = false, onToggleCompact, onNavigate, class
                       title={item.label}
                       className={cn(itemBase, active && itemActive)}
                     >
-                      <Icon className="size-4 shrink-0" />
-                      <span className={cn("flex min-w-0 flex-1 items-center gap-1.5", hide)}>
-                        {item.step && <span className="text-xs font-normal tabular-nums text-muted-foreground">{item.step}</span>}
+                      <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                        {ICONS[item.href] && (() => { const Icon = ICONS[item.href]; return <Icon className="size-4 shrink-0" aria-hidden="true" />; })()}
                         <span>{item.label}</span>
                       </span>
-                      {item.count !== undefined && (
-                        <span className={cn("ml-auto text-xs tabular-nums text-muted-foreground", hide)}>{item.count}</span>
+                      {count !== undefined && (
+                        <span className="ml-auto min-w-6 rounded-full bg-sidebar-primary px-2 py-0.5 text-center text-xs font-bold tabular-nums text-sidebar-primary-foreground">{count}</span>
                       )}
                     </Link>
                     {item.children && active && (
-                      <ul className={cn("mt-0.5 flex flex-col gap-0.5 pl-6", compact && "md:max-lg:hidden")}>
+                      <ul className="mt-0.5 flex flex-col gap-0.5 pl-6">
                         {item.children.map((child) => {
                           const childActive = pathname === child.href;
                           return (
@@ -162,7 +154,7 @@ export function AppSidebar({ compact = false, onToggleCompact, onNavigate, class
                                 href={child.href}
                                 onClick={onNavigate}
                                 aria-current={childActive ? "page" : undefined}
-                                className={cn(itemBase, childActive && "font-semibold text-foreground")}
+                                className={cn(itemBase, childActive && "bg-sidebar-accent font-semibold")}
                               >
                                 {child.label}
                               </Link>
@@ -180,41 +172,16 @@ export function AppSidebar({ compact = false, onToggleCompact, onNavigate, class
       </div>
 
       <div className="flex flex-col gap-0.5 border-t border-sidebar-border pt-3">
-        <div className={cn("flex flex-col gap-1 px-2.5 pb-2", compact && "md:max-lg:hidden")}>
-          <span className="text-[13px] font-semibold text-foreground">{roleInfo.person}</span>
-          <label htmlFor={viewAsId} className="text-xs text-muted-foreground">
-            Viewing as (demo, no sign-in)
-          </label>
-          <select
-            id={viewAsId}
-            value={role}
-            onChange={(e) => {
-              const next = ROLES.find((r) => r.value === e.target.value)!;
-              setViewAs(next.value);
-              router.push(next.home);
-              onNavigate?.();
-            }}
-            className="h-8 w-full rounded-lg border border-input bg-background px-2 text-[13px] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          >
-            {ROLES.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label}
-              </option>
-            ))}
-          </select>
-        </div>
         <a
-          href="http://localhost:8000/docs"
+          href="/docs"
           target="_blank"
           rel="noopener noreferrer"
           aria-label="API docs"
           title="API docs"
           className={itemBase}
         >
-          <FileCode2 className="size-4 shrink-0" />
-          <span className={hide}>API docs</span>
+          <span>API docs</span>
         </a>
-        <ThemeToggle compact={compact} />
       </div>
     </nav>
   );

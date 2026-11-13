@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS jira_syncs (
     pulled      INTEGER      NOT NULL DEFAULT 0,
     created     INTEGER      NOT NULL DEFAULT 0,
     updated     INTEGER      NOT NULL DEFAULT 0,
+    queued      INTEGER      NOT NULL DEFAULT 0,    -- new open tickets handed to the agents
     error       TEXT                            -- null = succeeded
 );
 CREATE INDEX IF NOT EXISTS ix_jira_syncs_started_at ON jira_syncs (started_at DESC);
+ALTER TABLE jira_syncs ADD COLUMN IF NOT EXISTS queued INTEGER NOT NULL DEFAULT 0;

@@ -24,6 +24,7 @@ class ConnectionOut(BaseModel):
     account_name: str | None = None
     error: str | None = None
     sync_minutes: int
+    write_back: bool = False  # a person may post comments and reviewed priorities to Jira
 
 
 class ProjectOut(BaseModel):
@@ -50,6 +51,7 @@ class SyncOut(BaseModel):
     pulled: int
     created: int
     updated: int
+    queued: int
     error: str | None = None
 
 
@@ -61,6 +63,7 @@ async def connection() -> ConnectionOut:
         token_set=bool(settings.ATLASSIAN_API_TOKEN.get_secret_value()),
         connected=False,
         sync_minutes=settings.JIRA_SYNC_MINUTES,
+        write_back=settings.JIRA_WRITE_BACK,
     )
     try:
         out.account_name = await jira.whoami()
@@ -94,9 +97,13 @@ async def save_projects(payload: list[ProjectIn], db: AsyncSession = Depends(get
 
 @router.post("/sync", response_model=SyncOut, summary="Pull the selected projects now")
 async def sync_now(db: AsyncSession = Depends(get_db)) -> SyncOut:
+    """Pull now; new open tickets then go through Data Quality and Triage in the background."""
     if jira.sync_lock.locked():
         raise HTTPException(status_code=409, detail="A sync is already running")
-    return SyncOut.model_validate(await jira.run_sync(db, "manual"))
+    run = await jira.run_sync(db, "manual")
+    if run.queued:
+        jira.start_agents()
+    return SyncOut.model_validate(run)
 
 
 @router.get("/syncs", response_model=list[SyncOut], summary="Sync history, newest first")

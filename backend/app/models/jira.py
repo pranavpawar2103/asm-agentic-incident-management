@@ -1,4 +1,4 @@
-"""Jira pull: selected projects and sync history (db/scripts/04_create_jira_sync.sql)."""
+"""Jira pull: selected projects and sync history (db/scripts/05_create_jira_sync.sql)."""
 
 from datetime import UTC, datetime
 
@@ -36,4 +36,5 @@ class JiraSync(Base):
     pulled: Mapped[int] = mapped_column(Integer, default=0)
     created: Mapped[int] = mapped_column(Integer, default=0)
     updated: Mapped[int] = mapped_column(Integer, default=0)
+    queued: Mapped[int] = mapped_column(Integer, default=0)  # new open tickets handed to the agents
     error: Mapped[str | None] = mapped_column(Text)

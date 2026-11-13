@@ -6,6 +6,7 @@ export interface JiraConnection {
   account_name?: string | null;
   error?: string | null;
   sync_minutes: number;
+  write_back?: boolean;
 }
 
 export interface JiraProject {
@@ -24,5 +25,6 @@ export interface JiraSync {
   pulled: number;
   created: number;
   updated: number;
+  queued: number;
   error?: string | null;
 }

@@ -92,9 +92,14 @@ class Settings(BaseSettings):
     SLA_AUTO_WARN: bool = False  # true = the system comments on a Jira issue at every 25% of its SLA target (if JIRA_WRITE_BACK)
     JIRA_WRITE_BACK: bool = False  # true = comments, reviewed priorities and the triaged status are written to the Jira issue
     CONFLUENCE_SYNC_MINUTES: int = Field(0, ge=0)  # knowledge base copy; 0 = only "Sync now"
+    CONFLUENCE_WRITE_BACK: bool = False  # true = an approved Knowledge Builder article can be published to its Confluence page
+    CONFLUENCE_COPY_DIR: Path = REPO_DIR / "data" / "confluence_copy"  # the copied pages as runbook files, for the agents
 
     # Closure Quality run
     CLOSURE_OUTAGE_BREAKER: int = Field(5, ge=1)  # same, for the Closure Quality model stage
+
+    # Knowledge Builder run
+    KNOWLEDGE_OUTAGE_BREAKER: int = Field(5, ge=1)  # same, for the Knowledge Builder model stage
 
     # Admin API. Unset key = admin endpoints switched off. Set both in the environment only, never through the API.
     ADMIN_API_KEY: str = ""
@@ -128,6 +133,7 @@ ADMIN_EDITABLE = frozenset({
     "DQ_OUTAGE_BREAKER",
     "TRIAGE_OUTAGE_BREAKER",
     "CLOSURE_OUTAGE_BREAKER",
+    "KNOWLEDGE_OUTAGE_BREAKER",
     "JIRA_SYNC_MINUTES",
     "CONFLUENCE_SYNC_MINUTES",
 })

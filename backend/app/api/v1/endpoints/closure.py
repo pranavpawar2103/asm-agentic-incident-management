@@ -1,9 +1,12 @@
 """Closure Quality agent endpoints."""
 
+from datetime import UTC, datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from app.api.v1.endpoints import knowledge
 from app.db.session import get_db
 from app.models.ticket import Ticket
 from app.schemas.closure import (
@@ -14,9 +17,11 @@ from app.schemas.closure import (
     ClosureReviewOut,
     ClosureRunResponse,
 )
+from app.services import jira
 from app.services.closure import check_ticket, run_closure
 from app.services.closure import review as closure_review
 from app.services.closure.run import RESOLVED
+from app.services.knowledge import run_knowledge
 
 router = APIRouter(prefix="/closure", tags=["closure quality"])
 
@@ -26,17 +31,25 @@ async def run(
     include_history: bool = Query(False, description="Also score tickets that were already closed when they arrived"),
     db: AsyncSession = Depends(get_db),
 ) -> ClosureRunResponse:
-    """Score the close notes of every resolved or closed ticket. Safe to re-run: unchanged notes are skipped."""
+    """Score the close notes of every resolved or closed ticket, then let Knowledge Builder learn from the notes that
+    passed (or that an engineer fixed). Safe to re-run: unchanged notes and cases are skipped."""
+    started = datetime.now(UTC)
     result = await db.run_sync(run_closure, include_history)
+    learned = await db.run_sync(run_knowledge)
+    await jira.announce_closure(db, started)  # notes that need work are asked for on the Jira issue (if JIRA_WRITE_BACK)
     return ClosureRunResponse(
-        evaluated=result.evaluated, skipped=result.skipped, model_errors=result.model_errors, by_verdict=dict(result.by_verdict)
+        evaluated=result.evaluated, skipped=result.skipped, model_errors=result.model_errors, by_verdict=dict(result.by_verdict),
+        knowledge=knowledge.run_response(learned),
     )
 
 
 @router.post("/tickets/{ticket_id}/check", response_model=ClosureCheckResponse, summary="Check one ticket's close notes")
 async def check_one_ticket(ticket_id: str, db: AsyncSession = Depends(get_db)) -> ClosureCheckResponse:
     """Rules, then the model if the rules cannot stop the notes and the model is enabled. Resolved tickets only."""
-    return await db.run_sync(_check_one, ticket_id)
+    started = datetime.now(UTC)
+    checked = await db.run_sync(_check_one, ticket_id)
+    await jira.announce_closure(db, started)
+    return checked
 
 
 def _check_one(db: Session, ticket_id: str) -> ClosureCheckResponse:

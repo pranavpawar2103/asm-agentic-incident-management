@@ -1,0 +1,20 @@
+[project]
+name = "ams-backend"
+version = "0.1.0"
+description = "Agentic incident management for AMS: ingestion, data quality, triage and resolution agents"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::DeprecationWarning:openpyxl.*",
+]
+
+[tool.ruff]
+line-length = 130
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

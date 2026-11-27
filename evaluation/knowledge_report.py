@@ -38,8 +38,9 @@ def sheet(path: Path, name: str) -> list[dict]:
     return [dict(zip(header, r)) for r in rows if any(r)]
 
 
-def real_cases() -> list[tuple[Ticket, str, str]]:
-    """(ticket, notes, expected article) for every closed ticket the answer key ties to an article."""
+def real_cases(no_match: bool = False) -> list[tuple[Ticket, str, str]]:
+    """(ticket, notes, expected article) for every closed ticket the answer key ties to an article. With no_match,
+    also the closed tickets the key leaves blank (no article: expected 'none')."""
     key = {r["ticket_ref"]: r["expected_kb_article"] for r in sheet(REPO / "evaluation" / "ground_truth.xlsx", "Ground_Truth")}
     tickets = [
         (Ticket(id=r["issue_key"], reporter_name=r["reporter"], summary=r["summary"], description=r["description"],
@@ -50,7 +51,7 @@ def real_cases() -> list[tuple[Ticket, str, str]]:
                 application=r["service"]), r["resolution_notes"])
         for r in sheet(REPO / "data" / "tickets" / "servicenow_tickets.xlsx", "servicenow_tickets") if r["closed_at"]
     ]
-    return [(t, notes, key[t.id]) for t, notes in tickets if key.get(t.id)]
+    return [(t, notes, key[t.id] or "none") for t, notes in tickets if key.get(t.id) or (no_match and t.id in key)]
 
 
 def written_cases() -> list[tuple[Ticket, str, str, str]]:

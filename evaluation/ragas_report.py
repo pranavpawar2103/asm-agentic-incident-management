@@ -5,12 +5,17 @@ Usage, from the repo root:  python evaluation/ragas_report.py [--limit N] [--out
   --out FILE  also write every sample and score to FILE as JSON
 Real calls only: the Resolution agent (needs the database with kb_chunks) and the judge, EVAL_JUDGE_MODEL, an Anthropic
 model (the key in backend/.env). Nothing is written to the database. Personal data is masked before the judge sees it.
-The tickets are the closed sample tickets the answer key ties to a knowledge-base article (as in knowledge_report.py).
+The tickets are the closed sample tickets the answer key ties to a knowledge-base article (as in knowledge_report.py),
+and the closed ones the key leaves blank (no article), which are run through the agent but not judged.
 The reference answer is the text of that article. Scores:
   faithfulness       the cause and steps are supported by the excerpts the agent read (judge)
   context_precision  the excerpts the agent read are useful for the reference answer (judge)
   context_recall     the reference answer is covered by the excerpts the agent read (judge)
   kb_hit             the expected article is among the references the answer cites (no model)
+  retrieval_recall   the expected article is among the excerpts the agent's searches showed (no model)
+  retrieval_mrr      mean of 1 / its rank among those excerpts, 0 when it was not shown (no model)
+  citation_valid     share of the cited references that the agent's searches showed (no model)
+  no_match_rate      the tickets with no article: the agent answered no_match (no model)
 Answer relevancy is not scored: RAGAS needs an embeddings model for it, and the repo's embedder is not one.
 The answer key was written by us; an expert should confirm it.
 """
@@ -55,36 +60,58 @@ def kb_hit(references: list[str], expected: str) -> bool:
     return expected in references
 
 
+def shown_kb_ids(trace: list[dict]) -> list[str]:
+    """The KB ids the agent's searches showed it, each once, in the order shown."""
+    return list(dict.fromkeys(kb for step in trace for kb in step.get("kb_ids", [])))
+
+
 def build_sample(case_id: str, user_input: str, answer: ResolutionAnswer, trace: list[dict], expected: str,
                  articles: dict[str, str]) -> dict:
     """One scored sample. retrieved_contexts are the articles the agent's searches showed it, in the order shown;
-    response is the cause and steps it gave (or its note, when it found no match); reference is the expected article."""
-    shown = list(dict.fromkeys(kb for step in trace for kb in step.get("kb_ids", [])))
+    response is the cause and steps it gave (or its note, when it found no match); reference is the expected article.
+    An expected value that is not a KB id (no article) has no reference, hit or rank; it is scored on no_match_ok."""
+    shown = shown_kb_ids(trace)
+    is_kb = expected.startswith("KB-")
+    rank = shown.index(expected) + 1 if is_kb and expected in shown else None
     return {
         "id": case_id,
         "user_input": user_input,
         "response": "\n".join(filter(None, [answer.root_cause, *answer.steps])) or answer.notes,
         "retrieved_contexts": [articles[kb] for kb in shown if kb in articles],
-        "reference": articles[expected],
+        "reference": articles[expected] if is_kb else None,
         "expected_kb": expected,
         "references": answer.references,
         "verdict": answer.verdict,
-        "kb_hit": kb_hit(answer.references, expected),
+        "kb_hit": kb_hit(answer.references, expected) if is_kb else None,
+        "retrieved_rank": rank,
+        "citation_valid": (sum(r in shown for r in answer.references) / len(answer.references)
+                           if answer.references else None),
+        "no_match_ok": None if is_kb else answer.verdict == "no_match",
         "scores": None,
     }
 
 
 def hit_rate(samples: list[dict]) -> float:
-    return sum(s["kb_hit"] for s in samples) / len(samples) if samples else 0.0
+    kb = [s for s in samples if s["kb_hit"] is not None]
+    return sum(s["kb_hit"] for s in kb) / len(kb) if kb else 0.0
 
 
 def summarise(samples: list[dict]) -> dict[str, tuple[float | None, int]]:
-    """Mean of each score and how many samples it was computed on: (mean or None, n)."""
+    """Mean of each score and how many samples it was computed on: (mean or None, n). The KB measures leave out the
+    no-match samples; citation_valid and no_match_rate each leave out the samples they do not apply to."""
     out = {}
     for name in JUDGED:
         values = [s["scores"][name] for s in samples if s["scores"] and s["scores"][name] is not None]
         out[name] = (sum(values) / len(values) if values else None, len(values))
-    out["kb_hit"] = (hit_rate(samples), len(samples))
+    kb = [s for s in samples if s["kb_hit"] is not None]
+    ranks = [s.get("retrieved_rank") for s in kb]
+    out["kb_hit"] = (hit_rate(samples), len(kb))
+    out["retrieval_recall"] = (sum(r is not None for r in ranks) / len(kb) if kb else 0.0, len(kb))
+    out["retrieval_mrr"] = (sum(1 / r if r else 0.0 for r in ranks) / len(kb) if kb else 0.0, len(kb))
+    cited = [s.get("citation_valid") for s in samples if s.get("citation_valid") is not None]
+    out["citation_valid"] = (sum(cited) / len(cited) if cited else None, len(cited))
+    checked = [s.get("no_match_ok") for s in samples if s.get("no_match_ok") is not None]
+    out["no_match_rate"] = (sum(checked) / len(checked) if checked else None, len(checked))
     return out
 
 
@@ -128,7 +155,7 @@ async def evaluate(tickets: list[tuple], judged: dict, articles: dict[str, str])
         sample = build_sample(ticket.id, case_text(case), res.answer, res.trace, expected, articles)
         masker = masker_for(case)
         sample["user_input"], sample["response"] = masker.mask(sample["user_input"]), masker.mask(sample["response"])
-        sample["scores"] = await score(judged, sample) if sample["retrieved_contexts"] else None
+        sample["scores"] = await score(judged, sample) if sample["reference"] and sample["retrieved_contexts"] else None
         samples.append(sample)
         shown = sample["scores"] and {k: round(v, 2) for k, v in sample["scores"].items()}
         print(f"  {ticket.id:<12} expected {expected:<12} verdict {sample['verdict']:<9} kb_hit {sample['kb_hit']!s:<5} {shown}")
@@ -142,7 +169,7 @@ def main() -> None:
     args = parser.parse_args()
 
     settings.LLM_ENABLED = True  # the agent and the judge are both model calls; this script never runs rules only
-    tickets = [(t, expected) for t, _notes, expected in real_cases() if expected.startswith("KB-")]
+    tickets = [(t, expected) for t, _notes, expected in real_cases(no_match=True)]
     if args.limit:
         tickets = tickets[: args.limit]
     judged = judges(settings.EVAL_JUDGE_MODEL)

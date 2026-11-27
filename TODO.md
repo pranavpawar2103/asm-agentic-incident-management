@@ -65,3 +65,17 @@ Context: [backend/db/scripts/DQ_RULES_FEATURE.md](backend/db/scripts/DQ_RULES_FE
 - Add LLM call spans (prompts, model, tokens, latency) on top of the API request traces from item 9, sent to the same Phoenix project.
 - Keep PII out of spans: confirm what is attached before enabling, since prompts contain ticket text (already masked by `Masker`).
 - Done when: a resolution or DQ model call shows as a span in Phoenix, and tracing stays off unless `PHOENIX_ENABLED=true`.
+
+## 11. Further evaluations (parked)
+- **Resolution answer correctness**: RAGAS FactualCorrectness and AnswerCorrectness of resolution steps vs the expected article (judge only, no embeddings).
+  - Done when: each ticket's steps have a correctness score against its expected article in the report, with no embedding calls.
+- **Knowledge Builder drafts**: judge faithfulness of the draft root cause and steps to the masked ticket (the code already checks invented IDs and numbers).
+  - Done when: each draft gets a faithfulness verdict with a reason, reported next to the existing invented-ID/number check.
+- **Closure Quality and Triage**: LLM-judge on the rationale text (lower priority; accuracy reports already exist).
+  - Done when: rationale quality is scored per ticket and compared with the existing accuracy reports.
+- **Consistency**: run each ticket 3 times and report variance in verdict and cited KB (3x cost).
+  - Done when: the report shows, per ticket, whether the verdict and cited KB articles matched across the 3 runs.
+- **Privacy**: extend `evaluation/pii_leak_report.py` to cover RAGAS samples before they reach the judge.
+  - Done when: the PII leak report scans RAGAS samples and fails on any leaked entity before the judge call.
+- **Guard**: `ragas_report.py` should fail loudly when `kb_chunks` is empty (today an empty table looks like `no_match` for every ticket).
+  - Done when: the report exits non-zero with a clear message when `kb_chunks` has no rows.
